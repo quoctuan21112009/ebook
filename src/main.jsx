@@ -12,6 +12,7 @@ import { AiHub, MusicDock } from './Extras'
 import Community from './Community'
 import ReaderAssistant from './ReaderAssistant'
 import QuoteStudio from './QuoteStudio'
+import { applyReaderTypography, normalizeReaderDocument } from './reader-typography'
 import '@fontsource/be-vietnam-pro/400.css'
 import '@fontsource/be-vietnam-pro/600.css'
 import '@fontsource/be-vietnam-pro/700.css'
@@ -376,6 +377,8 @@ function Reader({ bookInfo, onClose, onQuote, prefs, setPrefs, progress, setProg
   const viewer = useRef(null)
   const rendition = useRef(null)
   const epubBook = useRef(null)
+  const prefsRef = useRef(prefs)
+  prefsRef.current = prefs
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [panel, setPanel] = useState('')
@@ -468,16 +471,8 @@ function Reader({ bookInfo, onClose, onQuote, prefs, setPrefs, progress, setProg
           doc.addEventListener('pointerup', () => {
             setTimeout(() => { if (!cancelled && doc.getSelection()?.isCollapsed) setSelection(null) }, 220)
           })
-          doc.querySelectorAll('p').forEach(paragraph => {
-            if (paragraph.closest('pre, code, table, .poem, .poetry, .verse') || /poem|poetry|verse/i.test(paragraph.className)) return
-            // Only remove explicit line wraps in long prose; retain short verse and stanza breaks.
-            const breaks = [...paragraph.querySelectorAll('br')]
-            if (breaks.length && paragraph.textContent.length > 240) {
-              const segments = paragraph.innerHTML.split(/<br\s*\/?\s*>/i)
-              if (segments.every(part => part.replace(/<[^>]*>/g, '').trim().length > 35)) breaks.forEach(br => { const spacer = doc.createElement('span'); spacer.textContent = ' '; br.replaceWith(spacer) })
-            }
-          })
-          return Promise.all([400,500,700].map(weight => doc.fonts.load(`${weight} 20px \"Thu Cac Serif\"`, 'Tiếng Việt rõ ràng')))
+          normalizeReaderDocument(doc)
+          return applyReaderTypography(doc, prefsRef.current)
         })
         r.on('relocated', loc => {
           if (!loc?.start) return
@@ -505,11 +500,18 @@ function Reader({ bookInfo, onClose, onQuote, prefs, setPrefs, progress, setProg
   useEffect(() => {
     const r = rendition.current
     if (!r) return
-    const colors = { paper: ['#f5ecd9', '#332b24'], white: ['#fffdfa', '#252522'], sepia: ['#dec7a3', '#3b2b1e'], night: ['#232927', '#e7dfce'] }
-    const [bg, fg] = colors[prefs.theme] || colors.paper
-    const readableFont = prefs.font === 'serif' ? '"Thu Cac Serif", "DejaVu Serif", serif' : '"Thu Cac Sans", "DejaVu Sans", sans-serif'
-    r.themes.default({ body: { color: `${fg} !important`, background: `${bg} !important`, 'font-family': `${readableFont} !important`, 'font-size': `${prefs.fontSize}px !important`, 'line-height': `${prefs.lineHeight} !important`, 'padding-left': `${prefs.margin / 3}px !important`, 'padding-right': `${prefs.margin / 3}px !important`, 'padding-top': '12px !important', 'padding-bottom': '38px !important', 'box-sizing': 'border-box !important' }, 'body *': { 'font-family': `${readableFont} !important`, 'letter-spacing': 'normal !important', 'word-spacing': 'normal !important', 'font-kerning': 'normal !important', 'line-height': 'inherit !important' }, 'p span': { 'display': 'inline !important', 'font-size': 'inherit !important' }, 'pre, pre *, code, .poem, .poetry, .verse': { 'white-space': 'pre-wrap !important' }, p: { color: `${fg} !important`, 'font-weight': '500 !important', 'font-size': `${prefs.fontSize}px !important`, 'line-height': `${prefs.lineHeight} !important`, 'text-align': 'left !important', 'max-width': '100% !important', 'width': 'auto !important', 'height': 'auto !important', 'min-height': '0 !important', 'white-space': 'normal !important', 'break-before': 'auto !important', 'break-after': 'auto !important', 'break-inside': 'auto !important', 'text-indent': `${prefs.paragraphIndent ?? 1.2}em !important`, 'margin-top': '0 !important', 'margin-bottom': `${prefs.paragraphGap ?? 0.55}em !important`, 'overflow-wrap': 'break-word !important', orphans: '2 !important', widows: '2 !important', hyphens: 'none !important' }, a: { color: '#a06b40 !important' } })
-    r.themes.fontSize(`${prefs.fontSize}px`)
+    if (loading) return
+    let cancelled = false
+    const anchor = locationRef.current
+    const timer = setTimeout(async () => {
+      try {
+        await Promise.all(r.getContents().map(content => applyReaderTypography(content.document, prefsRef.current)))
+        if (cancelled) return
+        r.manager.views?.forEach(view => view.expand())
+        if (anchor) await r.display(anchor)
+      } catch (error) { if (!cancelled) console.error('Không dàn lại được trang:', error) }
+    }, 120)
+    return () => { cancelled = true; clearTimeout(timer) }
   }, [prefs, loading])
 
   useEffect(() => {
@@ -596,7 +598,7 @@ function Reader({ bookInfo, onClose, onQuote, prefs, setPrefs, progress, setProg
     {panel && <><div className="reader-panel-scrim" onClick={() => { setPanel(''); setSelection(null) }}/><aside className="reader-panel"><div className="panel-head"><div><span className="eyebrow small">THƯ CÁC</span><h2>{{ toc: 'Mục lục', notes: 'Sổ tay đọc sách', settings: 'Tùy chỉnh đọc', selection: 'Lưu điều hay', social: 'Bình luận theo đoạn', timer: 'Thời gian tập trung' }[panel]}</h2></div><button className="reader-icon" onClick={() => { setPanel(''); setSelection(null) }} aria-label="Đóng"><X size={20}/></button></div>
       {panel === 'toc' && <div className="panel-scroll"><p className="panel-intro">Chọn một chương để bắt đầu đọc.</p>{toc.map((item, i) => <button className="toc-item" key={`${item.href}-${i}`} onClick={() => goTo(item.href)}><span>{String(i+1).padStart(2,'0')}</span>{item.label?.trim()}<ChevronRight size={16}/></button>)}</div>}
       {panel === 'notes' && <div className="panel-scroll"><p className="panel-intro">Những ý tưởng bạn muốn giữ lại, ngay cạnh trang sách.</p>{annotations.length ? [...annotations].reverse().map(a => <div className="annotation-card" key={a.id}><div className="annotation-type">{a.type === 'bookmark' ? <Bookmark size={14}/> : <Highlighter size={14}/>} {a.type === 'bookmark' ? 'ĐÁNH DẤU' : 'BÔI ĐẬM'}</div><button className="annotation-text" onClick={() => goTo(a.cfi)}>{a.text}</button>{a.note && <p>{a.note}</p>}<button className="annotation-delete" onClick={() => removeAnnotation(a.id)}><Trash2 size={14}/> Xóa</button></div>) : <div className="panel-empty"><StickyNote size={29}/><strong>Chưa có ghi chú nào</strong><span>Chọn một đoạn văn trong sách để bôi đậm và ghi lại suy nghĩ.</span></div>}</div>}
-      {panel === 'settings' && <div className="panel-scroll settings-content"><div className="setting-group"><label>KIỂU CHỮ</label><div className="font-options"><button className={prefs.font === 'serif' ? 'chosen' : ''} onClick={() => changePref('font', 'serif')}><span className="serif-preview">Aa</span> Cổ điển</button><button className={prefs.font === 'sans' ? 'chosen' : ''} onClick={() => changePref('font', 'sans')}><span className="sans-preview">Aa</span> Hiện đại</button></div></div><div className="setting-group"><label>CỠ CHỮ <b>{prefs.fontSize}px</b></label><div className="stepper"><button onClick={() => changePref('fontSize', Math.max(12, prefs.fontSize-1))}><Minus size={17}/></button><input type="range" min="12" max="30" value={prefs.fontSize} onChange={e => changePref('fontSize', +e.target.value)}/><button onClick={() => changePref('fontSize', Math.min(30, prefs.fontSize+1))}><Plus size={17}/></button></div></div><div className="setting-group"><label>NỀN GIẤY</label><div className="theme-options">{themes.map(t => <button key={t.id} className={prefs.theme === t.id ? 'chosen' : ''} onClick={() => changePref('theme', t.id)}><span style={{ background: t.color }}>{prefs.theme === t.id && <Check size={16}/>}</span>{t.label}</button>)}</div></div><div className="setting-group"><label>GIÃN DÒNG <b>{prefs.lineHeight.toFixed(1)}</b></label><input className="full-range" type="range" min="1.3" max="2.2" step="0.1" value={prefs.lineHeight} onChange={e => changePref('lineHeight', +e.target.value)}/></div><div className="setting-group"><label>DÀN TRANG <b>Tự vừa chiều rộng trang</b></label><p>Chữ tự xuống dòng theo cỡ chữ và màn hình, giữ đoạn văn của EPUB.</p></div><div className="setting-group"><label>THỤT ĐẦU ĐOẠN <b>{(prefs.paragraphIndent ?? 1.2).toFixed(1)} em</b></label><input className="full-range" type="range" min="0" max="2" step="0.1" value={prefs.paragraphIndent ?? 1.2} onChange={e => changePref('paragraphIndent', +e.target.value)}/></div><div className="setting-group"><label>KHOẢNG CÁCH ĐOẠN <b>{(prefs.paragraphGap ?? 0.55).toFixed(1)} em</b></label><input className="full-range" type="range" min="0" max="1.5" step="0.1" value={prefs.paragraphGap ?? 0.55} onChange={e => changePref('paragraphGap', +e.target.value)}/></div><div className="settings-foot">Tùy chỉnh được lưu tự động cho những lần đọc sau.</div></div>}
+      {panel === 'settings' && <div className="panel-scroll settings-content"><div className="setting-group"><label>KIỂU CHỮ</label><div className="font-options"><button className={prefs.font === 'serif' ? 'chosen' : ''} onClick={() => changePref('font', 'serif')}><span className="serif-preview">Aa</span> Cổ điển</button><button className={prefs.font === 'sans' ? 'chosen' : ''} onClick={() => changePref('font', 'sans')}><span className="sans-preview">Aa</span> Hiện đại</button></div></div><div className="setting-group"><label>CỠ CHỮ <b>{prefs.fontSize}px</b></label><div className="stepper"><button onClick={() => changePref('fontSize', Math.max(12, prefs.fontSize-1))}><Minus size={17}/></button><input aria-label="Cỡ chữ" type="range" min="12" max="30" value={prefs.fontSize} onChange={e => changePref('fontSize', +e.target.value)}/><button onClick={() => changePref('fontSize', Math.min(30, prefs.fontSize+1))}><Plus size={17}/></button></div></div><div className="setting-group"><label>NỀN GIẤY</label><div className="theme-options">{themes.map(t => <button key={t.id} className={prefs.theme === t.id ? 'chosen' : ''} onClick={() => changePref('theme', t.id)}><span style={{ background: t.color }}>{prefs.theme === t.id && <Check size={16}/>}</span>{t.label}</button>)}</div></div><div className="setting-group"><label>GIÃN DÒNG <b>{prefs.lineHeight.toFixed(1)}</b></label><input className="full-range" type="range" min="1.3" max="2.2" step="0.1" value={prefs.lineHeight} onChange={e => changePref('lineHeight', +e.target.value)}/></div><div className="setting-group"><label>DÀN TRANG <b>Tự vừa chiều rộng trang</b></label><p>Chữ tự xuống dòng theo cỡ chữ và màn hình, giữ đoạn văn của EPUB.</p></div><div className="setting-group"><label>THỤT ĐẦU ĐOẠN <b>{(prefs.paragraphIndent ?? 1.2).toFixed(1)} em</b></label><input className="full-range" type="range" min="0" max="2" step="0.1" value={prefs.paragraphIndent ?? 1.2} onChange={e => changePref('paragraphIndent', +e.target.value)}/></div><div className="setting-group"><label>KHOẢNG CÁCH ĐOẠN <b>{(prefs.paragraphGap ?? 0.55).toFixed(1)} em</b></label><input className="full-range" type="range" min="0" max="1.5" step="0.1" value={prefs.paragraphGap ?? 0.55} onChange={e => changePref('paragraphGap', +e.target.value)}/></div><button className="save-note-btn" onClick={() => setPrefs({ ...defaultPrefs })}>Khôi phục kiểu chữ mặc định</button><div className="settings-foot">Tùy chỉnh được lưu tự động cho những lần đọc sau.</div></div>}
       {panel === 'social' && <div className="panel-scroll"><p className="panel-intro">Bình luận luôn gắn với đoạn chữ cụ thể. Chạm vào trích dẫn để đến vị trí đó.</p><ThreadList comments={comments} filter={commentFilter} setFilter={setCommentFilter} onVote={voteComment} onJump={goTo}/></div>}
       {panel === 'selection' && <div className="panel-scroll"><div className="quote-card">“{selection?.text}”</div><label className="note-label">GHI CHÚ CỦA BẠN</label><textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Điều gì ở đoạn này khiến bạn muốn nhớ?" rows="5"/><button className="save-note-btn" onClick={addHighlight}><Highlighter size={17}/> Lưu đoạn này</button><button className="quote-create-btn" onClick={() => onQuote(selection.text)}><Quote size={17}/> Tạo ảnh trích dẫn để khoe</button><button className="ask-ai-selection" onClick={() => { setAssistantOpen(true); setPanel(''); setFocus(false) }}><Sparkles size={16}/> Hỏi AI về đoạn này</button>{bookInfo.visibility === 'public' && <div className="inline-compose"><label className="note-label">BÌNH LUẬN CỘNG ĐỒNG</label><div className="comment-tag-options">{['Bổ sung kiến thức','Phản biện','Cảm nhận'].map(tag => <button key={tag} className={commentTag === tag ? 'active' : ''} onClick={() => setCommentTag(tag)}>{tag}</button>)}</div><textarea value={commentBody} onChange={e => setCommentBody(e.target.value)} placeholder="Viết ý kiến bám sát đoạn đã chọn..." rows="4"/><button className="save-note-btn social-submit" onClick={addComment}><MessageCircle size={17}/> Đăng bình luận</button></div>}</div>}
       {panel === 'timer' && <div className="panel-scroll timer-panel"><div className="timer-circle"><Clock3 size={27}/><strong>{String(Math.floor(minutes)).padStart(2,'0')}:{String(Math.floor((minutes % 1)*60)).padStart(2,'0')}</strong><span>PHÚT TẬP TRUNG</span></div><p>Dành trọn một khoảng thời gian cho trang sách này.</p><button className="save-note-btn" onClick={() => setRunning(!running)}>{running ? 'Tạm dừng' : 'Bắt đầu đọc'}</button><button className="timer-reset" onClick={() => { setRunning(false); setMinutes(25) }}>Đặt lại 25 phút</button></div>}
