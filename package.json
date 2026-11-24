@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24 <25"
+  },
   "scripts": {
     "dev": "concurrently -k \"npm run dev:api\" \"npm run dev:web -- --port 4173\"",
     "dev:api": "node server/index.js",

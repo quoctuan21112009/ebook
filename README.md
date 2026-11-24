@@ -15,6 +15,12 @@ npm run dev
 
 Trên Vercel chưa có cơ sở dữ liệu và kho tệp, ứng dụng tự chuyển sang **chế độ thiết bị**: hồ sơ, sách, ghi chú, bài viết và fanpage lưu trong trình duyệt, không đồng bộ với người khác. Để bật bảng tin chung trên Vercel cần triển khai API cùng cơ sở dữ liệu và kho tệp bền vững; chỉ chạy bản build Vite sẽ không tạo ra API.
 
+## Triển khai trên Render
+
+Repository có [`render.yaml`](render.yaml) để chạy giao diện và API chung trong một **Web Service**. Trên Render, chọn **New → Blueprint**, kết nối repository này rồi tạo dịch vụ từ Blueprint. Render dùng Node.js 24, chạy `npm ci --include=dev && npm run build`, sau đó `node server/index.js` với `NODE_ENV=production`. Cờ `--include=dev` bảo đảm Vite có mặt trong bước build. Kiểm tra `https://<tên-dịch-vụ>.onrender.com/api/health` trả về `{ "ok": true }`.
+
+Blueprint dùng gói **Starter** và ổ đĩa 1 GB gắn tại `/var/data`; `DATA_DIR` trỏ vào ổ đĩa này để giữ SQLite, sách, ảnh bìa và bài viết qua các lần triển khai. Gói Starter và ổ đĩa có tính phí. `PORT` do Render cấp tự động. Không đổi sang dịch vụ Static Site hoặc bỏ ổ đĩa nếu muốn người dùng chia sẻ dữ liệu thật. Sao lưu thư mục dữ liệu và sách định kỳ; dữ liệu đã lưu cục bộ tại Vercel không tự chuyển sang Render.
+
 ## Những gì đã có
 
 - Vào thư viện bằng tên hiển thị, không có bước đăng ký hoặc mật khẩu. Trên máy chủ, hồ sơ khách có cookie HTTP-only; người khác không thể nhập trùng tên để lấy sách riêng tư. Tài khoản có mật khẩu cũ vẫn được bảo vệ. Nếu mất cookie, hồ sơ khách không thể khôi phục bằng cách nhập lại tên; hãy giữ bản sao lưu sách.

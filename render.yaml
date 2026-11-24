@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: thu-cac
+    runtime: node
+    region: singapore
+    plan: starter
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: node server/index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 24.22.3
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+      - key: COOKIE_SECURE
+        value: "true"
+    disk:
+      name: thu-cac-data
+      mountPath: /var/data
+      sizeGB: 1
