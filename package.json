@@ -13,7 +13,11 @@
     "build": "vite build",
     "test": "node --test",
     "preview": "NODE_ENV=production node server/index.js",
-    "start": "NODE_ENV=production node server/index.js"
+    "start": "NODE_ENV=production node server/index.js",
+    "prepare:ocr": "node scripts/prepare-ocr.mjs",
+    "prebuild": "npm run prepare:ocr",
+    "predev": "npm run prepare:ocr",
+    "predev:web": "npm run prepare:ocr"
   },
   "dependencies": {
     "@fontsource/be-vietnam-pro": "^5.3.0",
@@ -27,9 +31,11 @@
     "pdfjs-dist": "^4.10.38",
     "pg": "^8.23.1",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tesseract.js": "^6.0.1"
   },
   "devDependencies": {
+    "@tesseract.js-data/vie": "^1.0.0",
     "@vitejs/plugin-react": "^4.7.0",
     "concurrently": "^9.2.5",
     "vite": "^6.1.0"

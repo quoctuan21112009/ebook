@@ -1,4 +1,5 @@
 import JSZip from 'jszip'
+import { cleanPdfText } from './pdf-text.js'
 
 function normalizedPath(base, relative) {
   const parts = [...base.split('/').slice(0, -1), ...decodeURIComponent(relative).split('/')]
@@ -78,19 +79,20 @@ export function extractPdfParagraphs(items) {
     line = null; previous = null
   }
   for (const item of items) {
-    const str = String(item.str || '').normalize('NFC')
+    const str = cleanPdfText(item.str)
     if (!str) { if (item.hasEOL) finishLine(); continue }
     const x = Number(item.transform?.[4]) || 0
     const y = Number(item.transform?.[5]) || 0
     const fontSize = Math.max(6, Number(item.height) || 0, Math.hypot(Number(item.transform?.[0]) || 0, Number(item.transform?.[1]) || 0))
-    if (!line || Math.abs(y - line.y) > Math.max(2, fontSize * .35) || (previous && x < previous.x - fontSize)) finishLine()
+    if (!/^\p{M}/u.test(str) && (!line || Math.abs(y - line.y) > Math.max(2, fontSize * .35) || (previous && x < previous.x - fontSize))) finishLine()
     if (!line) line = { text: '', x, y, fontSize }
     if (previous) {
       const gap = x - previous.endX
-      if (gap > Math.max(1.3, fontSize * .23) && !/\s$/.test(line.text) && !/^\s/.test(str)) line.text += ' '
+      if (gap > Math.max(1.3, fontSize * .23) && !/\s$/.test(line.text) && !/^\s|^\p{M}/u.test(str)) line.text += ' '
     }
     line.text += str
-    previous = { x, endX: x + (Number(item.width) || str.length * fontSize * .5) }
+    if (/^\p{M}/u.test(str) && previous) previous.endX = Math.max(previous.endX, x + (Number(item.width) || 0))
+    else previous = { x, endX: x + (Number(item.width) || str.length * fontSize * .5) }
     if (item.hasEOL) finishLine()
   }
   finishLine()

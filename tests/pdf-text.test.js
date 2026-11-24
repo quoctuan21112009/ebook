@@ -23,3 +23,10 @@ test('keeps a new paragraph after a blank line and normalizes accents', () => {
   ])
   assert.deepEqual(paragraphs, ['Một đoạn đầu.', 'Đoạn mới.'])
 })
+
+test('attaches a detached Vietnamese accent without spaces or a fake new line', () => {
+  assert.deepEqual(extractPdfParagraphs([
+    item('Tiê', 0, 100, 25), item('\u0301', 17, 108, 0), item('ng', 25, 100, 20),
+    item(' Việt', 45, 100, 45, true),
+  ]), ['Tiếng Việt'])
+})
