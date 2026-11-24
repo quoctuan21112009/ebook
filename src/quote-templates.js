@@ -1,0 +1,23 @@
+export const quoteTemplates = [
+  ['ivory','Giấy ngà','#f6efd9','#2e382f','#9d773d','grain'],
+  ['sage','Lá xô thơm','#dce5d6','#253e30','#64815e','leaves'],
+  ['ink','Mực đêm','#182b35','#f2ead8','#bfa373','stars'],
+  ['rose','Hoa hồng khô','#f0dcd8','#623e41','#ad7479','petals'],
+  ['ocean','Sóng biển','#dcebed','#234755','#6a9da3','waves'],
+  ['terracotta','Đất nung','#b76447','#fff2db','#f2c69e','arches'],
+  ['linen','Vải lanh','#e7ddcb','#443c31','#a29376','linen'],
+  ['forest','Rừng sâu','#1c4034','#f0e9ce','#9fae79','leaves'],
+  ['lavender','Oải hương','#e6e0ef','#4c4263','#9c8aae','petals'],
+  ['sun','Nắng mật ong','#f4d99d','#654528','#b78637','sun'],
+  ['blueprint','Bản vẽ xanh','#274960','#edf2e8','#83a5ae','grid'],
+  ['charcoal','Than chì','#302f30','#f4ead9','#b8a18b','grain'],
+  ['mint','Bạc hà','#d8ece1','#275342','#7ca790','waves'],
+  ['wine','Đỏ rượu','#632f3d','#fff0da','#d3a36d','arches'],
+  ['sand','Cát và gió','#ebd7b8','#5b4833','#b69062','dunes'],
+  ['lilac','Chiều tím','#4b4260','#f4e8e5','#bca3c4','stars'],
+  ['cobalt','Gốm lam','#eee9d9','#204b72','#4e7c9b','tiles'],
+  ['peach','Đào nhạt','#f8dfcb','#654338','#c88c70','sun'],
+  ['olive','Ô liu','#e2dfbd','#414a2c','#8a9059','leaves'],
+  ['mono','Ấn bản trắng','#f5f3ec','#252929','#777b78','grid'],
+].map(([id,name,paper,ink,accent,pattern]) => ({id,name,paper,ink,accent,pattern}))
+export const quoteLayouts = [['page','Trang sách'],['hardcover','Bìa cứng'],['spread','Sách mở'],['postcard','Bưu thiếp']]
