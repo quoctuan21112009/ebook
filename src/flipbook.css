@@ -43,5 +43,27 @@
 .flip-cover.--right,.flip-cover.--left{background-image:repeating-linear-gradient(85deg,#193c30,#234a39 2px,#1e4232 4px)}
 .flip-cover-inner{position:absolute;inset:32px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:15px;border:1px solid #bb9958;padding:22px;box-sizing:border-box}
 .flip-cover-inner>img{position:absolute;inset:-32px;width:calc(100% + 64px);height:calc(100% + 64px);object-fit:contain;background:#163729}
-.flip-stage:before{content:'';position:absolute;inset:0;pointer-events:none;background:repeating-radial-gradient(circle at center,#eed8aa18 0 1px,transparent 2px 34px);mask-image:radial-gradient(ellipse,#000a,transparent 85%)}
+.flip-stage:before{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 45%,transparent 30%,#05150f55 100%);box-shadow:inset 0 10px 30px #10251b38,inset 0 -15px 35px #10251b55}
 .flip-ribbon{position:absolute;right:16px;top:0;width:12px;height:43px;background:linear-gradient(90deg,#7d1829,#c94f52,#791a2d);clip-path:polygon(0 0,100% 0,100% 100%,50% 83%,0 100%);pointer-events:none;box-shadow:2px 3px 3px #0003}
+
+/* Local artwork keeps the reading room available without an image CDN. */
+.flip-stage,.reader .reader-ambient{
+  background-color:#172d23;
+  background-image:linear-gradient(#122b1d25,#12271c40),url('/landscapes/reading-sanctuary.webp');
+  background-position:center;
+  background-size:cover;
+  background-repeat:no-repeat;
+}
+.reader .reader-ambient{opacity:1}
+.flip-reader[data-paper="night"] .flip-stage,.reader.theme-night .reader-ambient{
+  background-image:linear-gradient(#06120cc4,#06120cd9),url('/landscapes/reading-sanctuary.webp');
+}
+.flip-book-host{filter:drop-shadow(0 16px 22px #07170fc0)}
+@media(max-width:650px){
+  .flip-stage,.reader .reader-ambient{background-image:linear-gradient(#10251a30,#10251a65),url('/landscapes/reading-sanctuary-mobile.webp');background-position:46% center}
+  .flip-reader[data-paper="night"] .flip-stage,.reader.theme-night .reader-ambient{background-image:linear-gradient(#06120cc4,#06120cd9),url('/landscapes/reading-sanctuary-mobile.webp')}
+}
+
+@media(min-width:651px) and (min-resolution:2dppx){
+  .flip-stage,.reader .reader-ambient{background-image:linear-gradient(#122b1d25,#12271c40),url('/landscapes/reading-sanctuary-hd.webp')}
+}

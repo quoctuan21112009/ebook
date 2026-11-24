@@ -25,6 +25,7 @@ Blueprint vẫn giữ gói **Starter** và ổ đĩa 1 GB tại `/var/data` đ�
 
 ## Những gì đã có
 
+- Không gian đọc có ảnh nền thư phòng nhìn ra núi rừng được tạo riêng, lưu trong `public/landscapes/reading-sanctuary*.webp`. Có bản cho điện thoại, màn hình thường và màn hình mật độ cao; chế độ đêm phủ tối nền để trang chữ rõ.
 - Sách lật 3D dùng StPageFlip 2.0.7: mở từ bìa cứng, cùng tỷ lệ trang 1:1,414, hai trang trên màn hình rộng và một trang trên điện thoại; kéo góc, vuốt hoặc dùng mũi tên để lật giấy có bóng động. EPUB được chia trang theo kích thước chữ đo trong trình duyệt, theo từng chương; PDF giữ hình trang gốc và dựng từng nhóm tối đa 12 trang. Chuyển chương bằng bộ chọn ở chân sách hoặc mũi tên sau trang cuối.
 - Trong sách 3D, bật **Chọn chữ** để tạm tắt kéo lật và dùng lựa chọn văn bản gốc; có ghi chú riêng, bình luận theo đoạn ở sách công khai và tạo ảnh trích dẫn. Nút **Đọc chữ / công cụ** chuyển về trình đọc có đầy đủ công cụ đọc và AI. Bố cục EPUB 3D dùng dàn chữ đơn giản; tài liệu nhiều bảng, công thức hoặc bố cục đặc biệt nên dùng PDF hoặc trình đọc chữ. Vuốt đã được kiểm tra bằng mô phỏng cảm ứng Chromium, chưa kiểm tra trên thiết bị iOS thật.
 
