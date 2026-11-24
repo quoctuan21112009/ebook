@@ -32,6 +32,28 @@ export async function getFile(id) {
   return result
 }
 
+export async function ensureFile(id, sha256) {
+  const local = await getFile(id)
+  if (local && (!sha256 || localStorage.getItem(`tc-file-hash:${id}`) === sha256)) return local
+  const response = await fetch(`/api/books/${encodeURIComponent(id)}/file`)
+  if (!response.ok) throw new Error('Không tải được sách từ máy chủ.')
+  const buffer = await response.arrayBuffer()
+  await putFile(id, buffer)
+  if (sha256) localStorage.setItem(`tc-file-hash:${id}`, sha256)
+  return buffer
+}
+
+export async function ensureReflow(id) {
+  const key = `${id}:reflow`
+  const local = await getFile(key)
+  if (local) return local
+  const response = await fetch(`/api/books/${encodeURIComponent(id)}/epub`)
+  if (!response.ok) throw new Error('Không tải được bản EPUB chuyển đổi.')
+  const buffer = await response.arrayBuffer()
+  await putFile(key, buffer)
+  return buffer
+}
+
 export async function deleteFile(id) {
   const db = await openDb()
   await new Promise((resolve, reject) => {

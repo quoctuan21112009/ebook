@@ -1,0 +1,132 @@
+.upgraded-shell .main-area { background: #f4e9d5 radial-gradient(circle at 70% 9%, #fff8e8, #f4e9d5 72%); }
+.upgraded-shell .content { max-width: 1700px; padding: 18px clamp(19px, 2.5vw, 42px) 30px; }
+.upgraded-shell .topbar { height: 63px; padding: 0 clamp(19px, 2.5vw, 42px); border-bottom: 2px solid #b68a4d; background: linear-gradient(90deg,#fff8e9ed,#f0e0c7b0), url('/landscapes/mountain-morning.webp') center 40% / cover; box-shadow: 0 3px 12px #6d54321e; }
+.upgraded-shell .breadcrumb { color: #273d2b; font-size: 13px; font-weight: 600; }
+.upgraded-shell .breadcrumb b { color: #173322; font-weight: 700; }
+.upgraded-shell .today-pill { background: #fff5dfdc; border: 1px solid #d7ae72; border-radius: 30px; color: #604b2f; box-shadow: 0 3px 8px #4b361a20; padding: 10px 17px; font: 600 12px 'Noto Serif',Georgia,serif; letter-spacing: 0; }
+.upgraded-shell .avatar { width: 39px; height: 39px; border-color: #d9b374; box-shadow: 0 0 0 3px #173927; }
+.upgraded-shell .sidebar { width: 224px; flex-basis: 224px; padding: 27px 14px 20px; color: #fff2d5; overflow-y: auto; background: linear-gradient(180deg,#061911ed 0%,#071c16db 43%,#0c231ac7 100%), url('/landscapes/emerald-valley.webp') center bottom / cover; border-right: 2px solid #b99154; box-shadow: inset -10px 0 22px #0003; }
+.upgraded-shell .brand { padding: 0 0 53px; flex-direction: column; gap: 10px; text-align: center; }
+.upgraded-shell .brand-mark { width: 76px; height: 62px; border: 0; border-radius: 0; transform: none; color: #e1b369; }
+.upgraded-shell .brand-mark svg { width: 66px; height: 56px; stroke-width: 1.1; transform: none; filter: drop-shadow(0 2px 7px #c7924a88); }
+.upgraded-shell .brand strong { font: 700 28px 'Noto Serif',Georgia,serif; color: #f1d297; letter-spacing: -.6px; }
+.upgraded-shell .brand span { font-size: 9px; color: #d6af70; letter-spacing: 2px; }
+.upgraded-shell .sidebar-label { color: #e8d6ad; font-size: 10px; letter-spacing: .8px; margin: 0 7px 15px; }
+.upgraded-shell .main-nav { gap: 6px; }
+.upgraded-shell .main-nav button { padding: 12px 11px; color: #f5e8ce; font: 600 12px 'Noto Serif',Georgia,serif; text-shadow: 0 1px 2px #0008; }
+.upgraded-shell .main-nav button svg { color: #ebcb8c; }
+.upgraded-shell .main-nav button.active { background: linear-gradient(105deg,#3a593eec,#193a2ee6); border: 1px solid #d7af70; box-shadow: inset 0 0 0 2px #e6c78a33,0 0 14px #d6a55d70; }
+.upgraded-shell .sidebar-rule { background: linear-gradient(90deg,transparent,#d9b779,transparent); margin: 29px 8px; }
+.upgraded-shell .sidebar-quote { margin: 0 6px; padding: 17px; background: #102b21d9; border: 1px solid #bf9658; box-shadow: inset 0 0 0 2px #c69e4233,0 5px 20px #0005; backdrop-filter: blur(4px); }
+.upgraded-shell .sidebar-quote p { font: italic 15px/1.65 'Noto Serif',Georgia,serif; color: #fff2d6; }
+.upgraded-shell .sidebar-quote div { color: #deb979; }
+.upgraded-shell .sidebar-bottom { padding-top: 58px; }
+.upgraded-shell .sidebar-bottom button { width: 100%; padding: 11px; justify-content: center; border: 1px solid #b89157; border-radius: 10px; background: #10291ed9; color: #f5dfaf; }
+
+.scene-hero { height: clamp(300px,23vw,390px); position: relative; overflow: hidden; border-radius: 15px; background: #173126 url('/landscapes/reading-room.webp') center / cover; border: 2px solid #c99b61; box-shadow: 0 15px 26px #664c2c39,inset 0 0 0 3px #f5d49b44; }
+.scene-hero:after { content: ''; position: absolute; inset: 7px; border: 1px solid #ead4a36e; border-radius: 10px; pointer-events: none; }
+.scene-copy { position: relative; z-index: 1; width: min(48%,590px); height: 100%; padding: clamp(34px,4vw,56px) clamp(30px,5vw,78px); color: #fff0d0; }
+.scene-kicker { color: #e0bf7e; letter-spacing: 2px; font: 700 11px 'Be Vietnam Pro',sans-serif; white-space: nowrap; }
+.scene-copy h1 { margin: 16px 0 9px; color: #fff0d3; font: 700 clamp(34px,3.5vw,55px)/1.13 'Noto Serif',Georgia,serif; letter-spacing: -.8px; text-shadow: 0 2px 4px #0008; }
+.scene-copy h1 em { color: #f4cf92; font-weight: 400; }
+.scene-copy p { color: #fff4dc; font: 600 14px/1.6 'Noto Serif',Georgia,serif; text-shadow: 0 2px 4px #0009; }
+.scene-search { display: flex; align-items: center; gap: 12px; margin-top: 22px; max-width: 390px; height: 49px; border: 1px solid #dbb577; border-radius: 30px; background: #112d21e8; padding: 4px 5px 4px 17px; box-shadow: 0 4px 16px #0005; color: #e2c58d; }
+.scene-search input { flex: 1; min-width: 0; border: 0; outline: 0; color: #fff3d9; background: transparent; font-size: 12px; }
+.scene-search input::placeholder { color: #dfd0ae; opacity: 1; }
+.scene-search span { flex: none; display: grid; place-items: center; width: 37px; height: 37px; border-radius: 50%; background: #f5d49b; color: #173225; }
+
+.reading-stats { display: flex; gap: 9px; align-items: stretch; margin: 13px 0 18px; }
+.reading-stats>div { min-height: 57px; display: grid; grid-template-columns: 24px auto; grid-template-rows: 23px 17px; column-gap: 9px; align-content: center; padding: 5px 17px; border-radius: 30px; border: 1px solid #dfbb87; background: #fff8ebdc; box-shadow: 0 4px 8px #7d593522; }
+.reading-stats>div svg { grid-row: span 2; align-self: center; color: #967040; }
+.reading-stats>div strong { color: #1c3e2b; font: 700 17px 'Noto Serif',Georgia,serif; white-space: nowrap; }
+.reading-stats>div span { font-size: 10px; color: #765b3b; white-space: nowrap; }
+.reading-stats>button { margin-left: auto; align-self: center; display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-radius: 12px; border: 1px solid #d3a86c; background: #fff6e6; color: #2b422f; font-weight: 700; font-size: 11px; white-space: nowrap; }
+.reading-stats>button:hover,.continue-info>button:hover,.recommend-content>div>button:hover { background: #f9e9c7; }
+.reading-dashboard { display: grid; grid-template-columns: minmax(0,1.7fr) minmax(280px,.77fr); gap: 17px; }
+.continue-card,.recommend-card { min-width: 0; min-height: 242px; position: relative; overflow: hidden; border-radius: 16px; padding: 20px 23px; border: 1px solid #d5ae79; box-shadow: 0 7px 18px #73543727,inset 0 0 0 3px #fff9eb9e; background: linear-gradient(90deg,#fff8e9f7 15%,#fff6e7dd 60%,#f5e4c3b3), url('/landscapes/mountain-morning.webp') right center / cover; }
+.continue-card:after,.recommend-card:after { content: ''; position: absolute; inset: 7px; border: 1px solid #d8b98877; border-radius: 10px; pointer-events: none; }
+.continue-card h2,.recommend-card h2 { display: flex; align-items: center; gap: 9px; margin: 0 0 16px; padding-bottom: 9px; border-bottom: 1px solid #c999634d; color: #1b3b29; font: 700 18px 'Noto Serif',Georgia,serif; }
+.continue-card h2 span,.recommend-card h2 svg { color: #aa793a; }
+.continue-content { display: flex; gap: clamp(15px,2.5vw,32px); align-items: flex-start; }
+.continue-cover,.recommend-cover { flex: none; padding: 0; background: transparent; filter: drop-shadow(6px 6px 4px #49342555); }
+.continue-cover .book-cover { width: 109px; height: 154px; }
+.continue-info { min-width: 0; flex: 1; }
+.continue-info h3,.recommend-content h3 { color: #163d2a; font: 700 clamp(18px,1.8vw,25px)/1.25 'Noto Serif',Georgia,serif; margin: 2px 0 4px; }
+.continue-info p,.recommend-content p { color: #5d513e; font-size: 12px; margin: 0 0 12px; }
+.continue-progress { display: flex; align-items: center; gap: 10px; max-width: 280px; }
+.continue-progress>div { height: 8px; flex: 1; background: #eadfce; border: 1px solid #d6c8ae; border-radius: 5px; overflow: hidden; }
+.continue-progress>div span { display: block; height: 100%; border-radius: 5px; background: #234e39; }
+.continue-progress strong { font-size: 12px; color: #2b4936; }
+.continue-info blockquote { color: #4a5747; font: italic 12px/1.5 'Noto Serif',Georgia,serif; margin: 10px 0 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.continue-info>button { display: flex; align-items: center; gap: 8px; border: 1px solid #caa16c; border-radius: 20px; padding: 8px 12px; background: #173d2b; color: #fff2d5; font-size: 11px; font-weight: 700; }
+.continue-info>button:hover { color: #203c2a; }
+.continue-empty p { color: #4a5846; font-size: 13px; }
+.continue-empty button { display: flex; align-items: center; gap: 8px; border-radius: 8px; padding: 10px 14px; background: #173d2b; color: #fff1d6; }
+.recommend-card { background: linear-gradient(90deg,#fff9eced,#fff4e1cb 76%,#f3e2c59c), url('/landscapes/mountain-morning.webp') 65% center / cover; }
+.recommend-content { display: flex; gap: 16px; align-items: flex-start; }
+.recommend-cover .book-cover { width: 86px; height: 124px; }
+.recommend-content>div { min-width: 0; }
+.recommend-content h3 { font-size: 17px; }
+.recommend-content small { color: #4c5747; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; font: 11px/1.55 'Be Vietnam Pro',sans-serif; }
+.recommend-content>div>button { display: flex; align-items: center; gap: 9px; color: #21442e; background: #fff7e8; border: 1px solid #c99e64; border-radius: 18px; padding: 8px 12px; margin-top: 12px; font-weight: 700; font-size: 11px; }
+.recommend-empty { color: #365443; font: italic 16px 'Noto Serif',Georgia,serif; padding-top: 25px; }
+
+.upgraded-shell .library-section { margin-top: 22px; padding: 18px 22px 0; border-radius: 16px; background: #fff5e5af; border: 1px solid #dcb88a; box-shadow: 0 7px 20px #76533219; }
+.upgraded-shell .section-heading h2 { font-size: 23px; }
+.upgraded-shell .library-toolbar { margin-top: 15px; }
+.upgraded-shell .shelf-stage { margin-top: 14px; }
+.upgraded-shell .shelf-back { background: linear-gradient(120deg,#f4e7d3,#fff7e9 48%,#edddc6); padding: 15px; }
+.upgraded-shell .books-grid { grid-template-columns: repeat(3,minmax(0,1fr)); align-items: stretch; gap: 15px; }
+.upgraded-shell .shelf-item { min-height: 170px; display: grid; grid-template-columns: 105px minmax(0,1fr); grid-template-rows: auto auto 1fr auto auto; gap: 0 14px; padding: 12px; border-radius: 11px; background: #fff9edc9; border: 1px solid #d8bd96; box-shadow: 0 3px 9px #7a553421; }
+.upgraded-shell .shelf-item .cover-button { grid-column: 1; grid-row: 1 / 6; margin: 0; align-self: center; }
+.upgraded-shell .shelf-item .book-cover { width: 92px; height: 137px; }
+.upgraded-shell .shelf-item .cover-copy h3 { font-size: 12px; }
+.upgraded-shell .shelf-item .cover-copy small,.upgraded-shell .shelf-item .cover-copy p { font-size: 6px; }
+.upgraded-shell .book-meta { grid-column: 2; margin: 0; }
+.upgraded-shell .book-meta h3 { font: 700 14px/1.35 'Noto Serif',Georgia,serif; color: #183a28; }
+.upgraded-shell .book-meta p { color: #4d594b; font-size: 11px; }
+.upgraded-shell .shelf-item .card-rating,.upgraded-shell .shelf-item .card-quote,.upgraded-shell .shelf-item .book-progress,.upgraded-shell .shelf-item>small { grid-column: 2; }
+.upgraded-shell .shelf-item .card-quote { margin: 3px 0; font-size: 10px; }
+.upgraded-shell .shelf-item .book-progress { align-self: end; }
+.upgraded-shell .shelf-item>small { margin-top: 5px; color: #355341; font-size: 10px; }
+.shelf-art-card { min-height: 170px; display: grid; place-items: center; border-radius: 10px; border: 1px solid #d8bd96; box-shadow: 0 3px 9px #7a553421; background: url('/landscapes/mountain-morning.webp') center / cover; }
+.shelf-art-quote { max-width: 90%; padding: 13px; background: #fff3dbb8; border-radius: 8px; color: #674328; font: italic 14px/1.5 'Noto Serif',Georgia,serif; text-align: center; text-shadow: 0 1px #fff9; }
+.shelf-art-quote span { display: block; margin-top: 7px; font: 700 9px 'Be Vietnam Pro',sans-serif; letter-spacing: 1px; }
+.upgraded-shell .quick-section { margin: 22px 0; }
+.upgraded-shell .quick-section button { background: linear-gradient(90deg,#fff9eced,#fff6e7d9), url('/landscapes/mountain-morning.webp') center / cover; }
+.auth-left { background: linear-gradient(90deg,#0b281def,#143e2ce0),url('/landscapes/emerald-valley.webp') center / cover; }
+.feature-hero { background: linear-gradient(90deg,#103323e8,#17372390),url('/landscapes/reading-room.webp') center / cover; border: 1px solid #c69e62; }
+.social-layout > * { min-width: 0; }
+
+@media(max-width:1300px) { .reading-stats { flex-wrap: wrap; } .reading-stats>button { margin-left: 0; } .upgraded-shell .books-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media(max-width:1000px) { .reading-dashboard { grid-template-columns: 1fr; } .recommend-card { min-height: 180px; } .scene-copy { width: 57%; } }
+@media(max-width:1000px) { .social-layout { grid-template-columns: minmax(0,1fr); } }
+@media(max-width:850px) { .upgraded-shell .sidebar { width: 245px; flex-basis: 245px; } .scene-copy { width: 65%; } }
+@media(max-width:600px) {
+  .upgraded-shell .topbar { height: 58px; }
+  .upgraded-shell .content { padding: 14px 13px 25px; }
+  .scene-hero { height: 360px; background-position: 55% center; }
+  .scene-hero:before { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg,#0d2c21f5,#0d2c21bb 58%,#0d2c2120); }
+  .scene-copy { width: 100%; padding: 32px 23px; }
+  .scene-kicker { font-size: 9px; }
+  .scene-copy h1 { font-size: clamp(30px,9vw,41px); }
+  .scene-copy p { font-size: 12px; max-width: 230px; }
+  .scene-search { max-width: 310px; margin-top: 25px; }
+  .reading-stats { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; }
+  .reading-stats>div { padding: 4px 10px; grid-template-columns: 19px auto; column-gap: 7px; }
+  .reading-stats>div svg { width: 18px; }
+  .reading-stats>div strong { font-size: 14px; }
+  .reading-stats>div span { font-size: 9px; }
+  .reading-stats>button { grid-column: 1 / -1; justify-content: center; }
+  .continue-card,.recommend-card { padding: 16px; }
+  .continue-content { gap: 13px; }
+  .continue-cover .book-cover { width: 90px; height: 132px; }
+  .continue-info h3 { font-size: 17px; }
+  .continue-info blockquote { font-size: 11px; }
+  .upgraded-shell .library-section { padding: 15px 11px 0; }
+  .upgraded-shell .section-heading h2 { font-size: 20px; }
+  .upgraded-shell .books-grid { grid-template-columns: 1fr; }
+  .upgraded-shell .shelf-item { min-height: 157px; }
+  .upgraded-shell .shelf-back { padding: 11px; }
+}
+@media(prefers-reduced-motion:reduce) { .upgraded-shell .shelf-item { animation: none; } }
