@@ -77,6 +77,32 @@
 .recommend-content>div>button { display: flex; align-items: center; gap: 9px; color: #21442e; background: #fff7e8; border: 1px solid #c99e64; border-radius: 18px; padding: 8px 12px; margin-top: 12px; font-weight: 700; font-size: 11px; }
 .recommend-empty { color: #365443; font: italic 16px 'Noto Serif',Georgia,serif; padding-top: 25px; }
 
+.discovery { margin-top: 20px; }
+.discovery-rail { padding: 17px 21px 20px; margin-bottom: 16px; border: 1px solid #d9b683; border-radius: 15px; background: #fff8eac4; box-shadow: 0 5px 15px #6d4c2c19; }
+.discovery-heading { display: flex; align-items: end; justify-content: space-between; gap: 10px; margin-bottom: 15px; }
+.discovery-heading span:first-child { color: #995e2f; font-size: 9px; font-weight: 700; letter-spacing: 1.5px; }
+.discovery-heading h2,.source-row h2 { margin: 5px 0 0; color: #1b3a28; font: 700 21px 'Noto Serif',Georgia,serif; }
+.discovery-heading .rail-hint { color: #806c4a; font-size: 10px; white-space: nowrap; }
+.rail-track { display: flex; gap: 16px; overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: x proximity; scrollbar-color: #c6a26d #f6ebd7; padding: 2px 3px 9px; }
+.rail-book { flex: 0 0 132px; min-width: 0; padding: 0; background: transparent; text-align: left; color: #263f2d; scroll-snap-align: start; }
+.rail-book .book-cover { width: 116px; height: 161px; margin: 0 0 10px; box-shadow: 7px 9px 9px #51392040; transition: transform .2s ease; }
+.rail-book:hover .book-cover { transform: translateY(-4px) rotate(-2deg); }
+.rail-book .cover-copy h3 { font-size: 14px; }
+.rail-book strong { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font: 700 12px/1.45 'Noto Serif',Georgia,serif; }
+.rail-book small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #596851; font-size: 10px; margin-top: 3px; }
+.rail-book>span { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 6px; border-radius: 12px; padding: 4px 7px; color: #7d5831; background: #efe1c9; font-size: 9px; }
+.genre-row { display: flex; gap: 20px; align-items: center; padding: 11px 16px; margin-bottom: 16px; border-radius: 12px; border: 1px solid #dcc39f; background: #fff8eb; }
+.genre-row strong { flex: none; color: #294631; font: 700 12px 'Noto Serif',Georgia,serif; }
+.genre-row>div { display: flex; gap: 7px; overflow-x: auto; }
+.genre-row button { flex: none; color: #355440; background: #f1e8d6; border: 1px solid #d2b68c; border-radius: 18px; padding: 6px 11px; font-size: 10px; }
+.source-row { display: grid; grid-template-columns: minmax(0,1fr) 180px 180px; gap: 13px; align-items: stretch; padding: 18px 20px; border: 1px solid #d4b080; border-radius: 15px; background: linear-gradient(90deg,#fff8eaed,#fff4e1c0),url('/landscapes/mountain-morning.webp') center / cover; }
+.source-row p { margin: 7px 0 0; color: #566853; font-size: 11px; line-height: 1.5; }
+.source-row>a { display: flex; align-items: center; gap: 10px; padding: 12px; border: 1px solid #b99566; border-radius: 10px; background: #fff9eddd; color: #275138; text-decoration: none; }
+.source-row>a:hover { background: #fffdf6; }
+.source-row>a strong,.source-row>a small { display: block; }
+.source-row>a strong { font: 700 16px 'Noto Serif',Georgia,serif; }
+.source-row>a small { font-size: 9px; color: #84633b; }
+
 .upgraded-shell .library-section { margin-top: 22px; padding: 18px 22px 0; border-radius: 16px; background: #fff5e5af; border: 1px solid #dcb88a; box-shadow: 0 7px 20px #76533219; }
 .upgraded-shell .section-heading h2 { font-size: 23px; }
 .upgraded-shell .library-toolbar { margin-top: 15px; }
@@ -108,13 +134,24 @@
 @media(max-width:1300px) { .reading-stats { flex-wrap: wrap; } .reading-stats>button { margin-left: 0; } .upgraded-shell .books-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media(max-width:1000px) { .reading-dashboard { grid-template-columns: 1fr; } .recommend-card { min-height: 180px; } .scene-copy { width: 57%; } }
 @media(max-width:1000px) { .social-layout { grid-template-columns: minmax(0,1fr); } }
+@media(max-width:1000px) { .source-row { grid-template-columns: minmax(0,1fr) 150px 150px; } }
 @media(max-width:850px) { .upgraded-shell .sidebar { width: 245px; flex-basis: 245px; } .scene-copy { width: 65%; } }
 @media(max-width:850px) { .auth-page { grid-template-columns: minmax(0,1fr); } }
+@media(max-width:850px) { .source-row { grid-template-columns: repeat(2,minmax(0,1fr)); } .source-row>div { grid-column: 1 / -1; } }
 @media(max-width:600px) {
   .local-banner { display: block; padding: 9px 14px; }
   .local-banner strong { display: block; }
   .upgraded-shell .topbar { height: 58px; }
   .upgraded-shell .content { padding: 14px 13px 25px; }
+  .discovery-rail { padding: 14px 12px; }
+  .discovery-heading .rail-hint { display: none; }
+  .source-row { padding: 14px; gap: 8px; }
+  .source-row>a { padding: 9px; }
+  .source-row>a svg { flex: none; width: 19px; }
+  .source-row>a strong { font-size: 14px; }
+  .source-row>a small { font-size: 8px; }
+  .genre-row { display: block; }
+  .genre-row>div { margin-top: 9px; }
   .scene-hero { height: 360px; background-position: 55% center; }
   .scene-hero:before { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg,#0d2c21f5,#0d2c21bb 58%,#0d2c2120); }
   .scene-copy { width: 100%; padding: 32px 23px; }

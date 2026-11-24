@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { ArrowRight, BookOpen, Check, Copy, ExternalLink, MessageCircle, Music2, Pause, Play, Plus, Search, Send, Star, Volume2 } from 'lucide-react'
+import { openAiWebsite } from './ReaderAssistant'
 
 const providers = [
   { name: 'ChatGPT', url: 'https://chatgpt.com/' },
@@ -7,7 +8,7 @@ const providers = [
   { name: 'Claude', url: 'https://claude.ai/' },
 ]
 
-export function AiHub({ books, annotations, toast }) {
+export function AiHub({ books, annotations, toast, onRead }) {
   const [bookId, setBookId] = useState(books[0]?.id || '')
   const [question, setQuestion] = useState('')
   const book = books.find(b => b.id === bookId)
@@ -17,7 +18,7 @@ export function AiHub({ books, annotations, toast }) {
     try { await navigator.clipboard.writeText(prompt); toast('Đã sao chép câu hỏi và ghi chú') }
     catch { toast('Không thể sao chép. Hãy chọn và sao chép nội dung bên dưới.') }
   }
-  return <section className="feature-page"><div className="feature-hero"><div className="eyebrow">GÓC BÀN LUẬN</div><h1>Đọc cùng một góc nhìn mới.</h1><p>Mang câu hỏi và ghi chú sang AI bạn thích để tiếp tục cuộc trò chuyện.</p></div><div className="ai-layout"><div className="feature-card"><h2>Chuẩn bị câu hỏi</h2><label>CUỐN SÁCH</label><select value={bookId} onChange={e => setBookId(e.target.value)}><option value="">Chọn sách</option>{books.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}</select><label>ĐIỀU BẠN MUỐN BÀN LUẬN</label><textarea value={question} onChange={e => setQuestion(e.target.value)} rows="5" placeholder="Ví dụ: Nhân vật thay đổi như thế nào qua các chương?"/><div className="prompt-preview"><span>BẢN XEM TRƯỚC CÂU HỎI</span><p>{prompt}</p></div><button className="feature-primary" onClick={copy}><Copy size={17}/> Sao chép câu hỏi</button></div><div className="feature-card ai-providers"><h2>Mở không gian AI</h2><p>Sao chép câu hỏi trước, rồi dán vào trang AI. Bạn đăng nhập trực tiếp tại trang đó.</p>{providers.map(p => <a key={p.name} href={p.url} target="_blank" rel="noopener noreferrer"><span className="provider-initial">{p.name[0]}</span><span>{p.name}<small>Trò chuyện trên {p.name}</small></span><ExternalLink size={17}/></a>)}<div className="provider-note">Trình duyệt không cho trang này truy cập cuộc hội thoại trên các website AI. Không cần nhập khóa API tại Thư Các.</div></div></div></section>
+  return <section className="feature-page"><div className="feature-hero"><div className="eyebrow">GÓC BÀN LUẬN</div><h1>Đọc cùng một góc nhìn mới.</h1><p>Mở sách cùng cửa sổ ChatGPT, Gemini hoặc Claude bạn đang sử dụng.</p></div><div className="ai-layout"><div className="feature-card"><h2>Chuẩn bị câu hỏi</h2><label>CUỐN SÁCH</label><select value={bookId} onChange={e => setBookId(e.target.value)}><option value="">Chọn sách</option>{books.map(b => <option key={b.id} value={b.id}>{b.title}</option>)}</select><label>ĐIỀU BẠN MUỐN BÀN LUẬN</label><textarea value={question} onChange={e => setQuestion(e.target.value)} rows="5" placeholder="Ví dụ: Nhân vật thay đổi như thế nào qua các chương?"/><div className="prompt-preview"><span>BẢN XEM TRƯỚC CÂU HỎI</span><p>{prompt}</p></div>{book && <button className="feature-primary" onClick={() => onRead({ ...book, openAssistant: true })}><BookOpen size={17}/> Mở sách và cửa sổ AI</button>}<button className="feature-primary" onClick={copy}><Copy size={17}/> Sao chép câu hỏi</button></div><div className="feature-card ai-providers"><h2>Mở không gian AI</h2><p>Mở website AI đã đăng nhập trong cửa sổ cạnh sách, rồi dán câu hỏi bạn vừa sao chép.</p>{providers.map(p => <a key={p.name} href={p.url} target="_blank" rel="noopener noreferrer" onClick={event => { event.preventDefault(); const result = openAiWebsite(p.url); if (result.opened) copy(); else toast('Trình duyệt đã chặn cửa sổ AI. Hãy cho phép pop-up cho Thư Các.') }}><span className="provider-initial">{p.name[0]}</span><span>{p.name}<small>Trò chuyện trên {p.name}</small></span><ExternalLink size={17}/></a>)}<div className="provider-note">Trình duyệt không cho trang này truy cập cuộc hội thoại trên các website AI. Không cần nhập khóa API tại Thư Các.</div></div></div></section>
 }
 
 const sounds = [

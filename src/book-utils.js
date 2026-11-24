@@ -69,12 +69,50 @@ export async function pdfCover(buffer) {
   } finally { pdf.destroy() }
 }
 
+export function extractPdfParagraphs(items) {
+  const lines = []
+  let line = null
+  let previous = null
+  const finishLine = () => {
+    if (line?.text.trim()) lines.push({ ...line, text: line.text.normalize('NFC').replace(/\s+/g, ' ').trim() })
+    line = null; previous = null
+  }
+  for (const item of items) {
+    const str = String(item.str || '').normalize('NFC')
+    if (!str) { if (item.hasEOL) finishLine(); continue }
+    const x = Number(item.transform?.[4]) || 0
+    const y = Number(item.transform?.[5]) || 0
+    const fontSize = Math.max(6, Number(item.height) || 0, Math.hypot(Number(item.transform?.[0]) || 0, Number(item.transform?.[1]) || 0))
+    if (!line || Math.abs(y - line.y) > Math.max(2, fontSize * .35) || (previous && x < previous.x - fontSize)) finishLine()
+    if (!line) line = { text: '', x, y, fontSize }
+    if (previous) {
+      const gap = x - previous.endX
+      if (gap > Math.max(1.3, fontSize * .23) && !/\s$/.test(line.text) && !/^\s/.test(str)) line.text += ' '
+    }
+    line.text += str
+    previous = { x, endX: x + (Number(item.width) || str.length * fontSize * .5) }
+    if (item.hasEOL) finishLine()
+  }
+  finishLine()
+  const paragraphs = []
+  let paragraph = ''
+  let last = null
+  for (const current of lines) {
+    const newParagraph = last && (Math.abs(current.y - last.y) > Math.max(current.fontSize, last.fontSize) * 1.5 || current.x - last.x > current.fontSize * 1.2)
+    if (newParagraph && paragraph) { paragraphs.push(paragraph); paragraph = '' }
+    paragraph += (paragraph ? ' ' : '') + current.text
+    last = current
+  }
+  if (paragraph) paragraphs.push(paragraph)
+  return paragraphs
+}
+
 export async function suggestQuoteFromPdf(buffer) {
   const pdf = await loadPdf(buffer)
   try {
     const page = await pdf.getPage(1)
     const content = await page.getTextContent()
-    return content.items.map(item => item.str || '').join(' ').replace(/\s+/g,' ').trim().slice(0,260)
+    return extractPdfParagraphs(content.items).join(' ').slice(0,260)
   } finally { pdf.destroy() }
 }
 
@@ -87,8 +125,8 @@ export async function pdfToEpub(buffer, title = 'Sách chuyển từ PDF') {
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i)
       const text = await page.getTextContent()
-      const lines = text.items.map(item => item.str || '').filter(Boolean)
-      if (lines.length) chapters.push({ title: `Trang ${i}`, text: lines.join(' ') })
+      const paragraphs = extractPdfParagraphs(text.items)
+      if (paragraphs.length) chapters.push({ title: `Trang ${i}`, paragraphs })
     }
   } finally { pdf.destroy() }
   if (!chapters.length) throw new Error('PDF ảnh quét không có lớp chữ để chuyển sang EPUB.')
@@ -98,7 +136,7 @@ export async function pdfToEpub(buffer, title = 'Sách chuyển từ PDF') {
   const manifest = []; const spine = []; const nav = []
   chapters.forEach((chapter, index) => {
     const name = `page${index + 1}.xhtml`; const id = `p${index + 1}`
-    zip.file(`OEBPS/${name}`, `<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml" xml:lang="vi"><head><title>${esc(chapter.title)}</title></head><body><h1>${esc(chapter.title)}</h1><p>${esc(chapter.text)}</p></body></html>`)
+    zip.file(`OEBPS/${name}`, `<?xml version="1.0" encoding="UTF-8"?><html xmlns="http://www.w3.org/1999/xhtml" xml:lang="vi"><head><title>${esc(chapter.title)}</title></head><body><h1>${esc(chapter.title)}</h1>${chapter.paragraphs.map(paragraph => `<p>${esc(paragraph)}</p>`).join('')}</body></html>`)
     manifest.push(`<item id="${id}" href="${name}" media-type="application/xhtml+xml"/>`)
     spine.push(`<itemref idref="${id}"/>`)
     nav.push(`<li><a href="${name}">${esc(chapter.title)}</a></li>`)
