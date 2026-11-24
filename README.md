@@ -11,7 +11,9 @@ npm ci
 npm run dev
 ```
 
-`npm run dev` chạy API tại cổng 3001 và Vite tại cổng 4173. Để chạy bản build: `npm run build && npm start`. Có thể đặt `DATA_DIR` để chọn thư mục dữ liệu máy chủ và `PORT` để đổi cổng khi chạy production. Thư mục dữ liệu mặc định `.data/` chứa SQLite và tệp sách; cần ổ đĩa bền vững và sao lưu định kỳ khi triển khai.
+`npm run dev` chạy API tại cổng 3001 và Vite tại cổng 4173. Để xem bản build đầy đủ: `npm run build && npm run preview`; khi triển khai trên máy chủ Node.js dùng `npm start`. Có thể đặt `DATA_DIR` để chọn thư mục dữ liệu máy chủ và `PORT` để đổi cổng. Thư mục dữ liệu mặc định `.data/` chứa SQLite và tệp sách; cần ổ đĩa bền vững và sao lưu định kỳ khi triển khai.
+
+Trên Vercel chưa có cơ sở dữ liệu và kho tệp, ứng dụng tự chuyển sang **chế độ thiết bị**: hồ sơ, sách và ghi chú lưu trong trình duyệt, không đồng bộ hoặc chia sẻ cộng đồng. Để bật tài khoản và thảo luận chung trên Vercel cần triển khai một API cùng nơi lưu trữ bền vững; chỉ chạy bản build Vite sẽ không tạo ra API.
 
 ## Những gì đã có
 

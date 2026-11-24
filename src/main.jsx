@@ -4,6 +4,8 @@ import { ArrowLeft, ArrowRight, BookOpen, Bookmark, Check, ChevronLeft, ChevronR
 import { deleteFile, getFile, ensureFile, ensureReflow, loadJson, putFile, saveJson } from './storage'
 import { extractEpubCover, pdfCover, pdfToEpub, suggestQuoteFromEpub, suggestQuoteFromPdf } from './book-utils'
 import { exportBackup, importBackup } from './backup'
+import { readApiJson } from './api'
+import { clearLocalSession, localSession } from './local-auth'
 import Auth from './Auth'
 import PdfReader from './PdfReader'
 import { AiHub, MusicDock } from './Extras'
@@ -54,10 +56,10 @@ function BookDetail({ book, onClose, onRead, onUpdate, onDelete, onMerged, toast
   const [genre, setGenre] = useState(book.genre || '')
   const [tags, setTags] = useState((book.tags || []).join(', '))
   const [proposals, setProposals] = useState([])
-  useEffect(() => { if (book.mine && book.visibility === 'public' && !book.localOnly) fetch(`/api/books/${book.id}/proposals`).then(r=>r.json()).then(data=>setProposals(data.proposals||[])).catch(()=>{}) }, [book.id])
+  useEffect(() => { if (book.mine && book.visibility === 'public' && !book.localOnly) fetch(`/api/books/${book.id}/proposals`).then(r=>readApiJson(r)).then(data=>setProposals(data.proposals||[])).catch(()=>{}) }, [book.id])
   async function resolveProposal(id, accept) {
     const response = await fetch(`/api/proposals/${id}/resolve`, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({accept}) })
-    const result = await response.json()
+    const result = await readApiJson(response)
     if (!response.ok) { toast(result.error || 'Không xử lý được đề xuất.'); return }
     if (accept) { await deleteFile(book.id); localStorage.removeItem(`tc-file-hash:${book.id}`); await onMerged() }
     setProposals(v=>v.filter(p=>p.id!==id)); toast(accept?'Đã nhận bản sách mới.':'Đã từ chối đề xuất.')
@@ -105,7 +107,7 @@ function LibraryIntro({ user, books, recent, progress, query, setQuery, onRead, 
   </>
 }
 
-function AppContent({ user, onLogout }) {
+function AppContent({ user, onLogout, offline = false }) {
   const key = field => `tc-${field}:${user}`
   const [uploaded, setUploaded] = useState(() => loadJson(key('books'), []).map(b => ({ ...b, type: b.type || 'epub' })))
   const [serverBooks, setServerBooks] = useState([])
@@ -146,13 +148,14 @@ function AppContent({ user, onLogout }) {
   useEffect(() => saveJson(key('prefs'), prefs), [prefs])
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 4000); return () => clearTimeout(t) }, [toast])
   useEffect(() => {
+    if (offline) { setServerLoaded(true); return }
     let cancelled = false
     async function loadServer() {
       try {
         const response = await fetch('/api/books')
         if (!response.ok) throw new Error('Không tải được thư viện cộng đồng.')
-        const { books: remote } = await response.json()
-        const states = await Promise.all(remote.map(b => fetch(`/api/books/${b.id}/state`).then(r => r.ok ? r.json() : null).catch(() => null)))
+        const { books: remote } = await readApiJson(response)
+        const states = await Promise.all(remote.map(b => fetch(`/api/books/${b.id}/state`).then(r => r.ok ? readApiJson(r) : null).catch(() => null)))
         if (cancelled) return
         const remoteProgress = {}, remoteAnnotations = {}
         const enriched = remote.map((b, index) => {
@@ -205,17 +208,27 @@ function AppContent({ user, onLogout }) {
         } else cover = await pdfCover(buffer)
         const normalized = type === 'pdf' ? await pdfToEpub(buffer, title).catch(() => null) : null
         const quote = uploadQuote.trim() || (type === 'epub' ? await suggestQuoteFromEpub(buffer).catch(() => '') : await suggestQuoteFromPdf(buffer).catch(() => ''))
+        if (offline) {
+          const id = crypto.randomUUID()
+          await putFile(id, buffer)
+          if (cover) await putFile(`${id}:cover`, cover)
+          if (normalized) await putFile(`${id}:reflow`, await normalized.arrayBuffer())
+          setUploaded(current => [{ id, title, author, type, quote, genre: uploadGenre.trim(), tags: uploadTags.split(',').map(tag => tag.trim()).filter(Boolean), uploader: user, added: Date.now(), hasReflow: !!normalized, visibility: 'private', mine: true, localOnly: true }, ...current])
+          setToast(`Đã lưu “${title}” trên thiết bị này`)
+          setUploadOpen(false); setUploadQuote(''); setUploadGenre(''); setUploadTags('')
+          continue
+        }
         const form = new FormData()
         form.append('file', file); if (cover) form.append('cover', cover, 'cover.' + (cover.type.includes('svg') ? 'svg' : cover.type.includes('png') ? 'png' : 'jpg'))
         if (normalized) form.append('normalized', normalized, `${title}.epub`)
         form.append('title', title); form.append('author', author); form.append('genre', uploadGenre); form.append('tags', uploadTags); form.append('quote', quote); form.append('visibility', visibility); form.append('rights', String(rights))
         const response = await fetch('/api/books', { method: 'POST', body: form })
-        const result = await response.json()
+        const result = await readApiJson(response)
         if (response.status === 409 && result.mergeAvailable) {
           if (confirm(`“${result.duplicate.title}” đã có. Gửi tệp này làm đề xuất bản tốt hơn cho người đăng sách?`)) {
             const proposal = new FormData(); proposal.append('file', file); if (cover) proposal.append('cover', cover, 'cover.' + (cover.type.includes('png') ? 'png' : 'jpg')); proposal.append('rights', String(rights)); proposal.append('note', 'Đề xuất bản chất lượng tốt hơn')
             const sent = await fetch(`/api/books/${result.duplicate.id}/proposals`, { method: 'POST', body: proposal })
-            const message = await sent.json()
+            const message = await readApiJson(sent)
             setToast(sent.ok ? 'Đã gửi đề xuất hợp nhất cho người đăng sách.' : message.error || 'Không gửi được đề xuất.')
           }
           setUploadOpen(false); setVisibility('private'); setRights(false); setUploadQuote(''); setUploadGenre(''); setUploadTags(''); continue
@@ -235,7 +248,7 @@ function AppContent({ user, onLogout }) {
     if (!book.mine || !confirm(`Xóa “${book.title}” cùng bình luận và dữ liệu liên quan?`)) return
     if (!book.localOnly) {
       const response = await fetch(`/api/books/${book.id}`, { method: 'DELETE' })
-      if (!response.ok) { setToast((await response.json()).error || 'Không xóa được sách.'); return }
+      if (!response.ok) { setToast((await readApiJson(response)).error || 'Không xóa được sách.'); return }
       setServerBooks(v => v.filter(b => b.id !== book.id))
     }
     await deleteFile(book.id); await deleteFile(`${book.id}:cover`)
@@ -281,7 +294,7 @@ function AppContent({ user, onLogout }) {
   function updateAnnotations(id, value) { setAnnotations(v => ({ ...v, [id]: value })); setDirtyId(id) }
   async function refreshServerBooks() {
     const response = await fetch('/api/books')
-    const data = await response.json()
+    const data = await readApiJson(response)
     setServerBooks(current => data.books.map(b => ({ ...b, rating: current.find(x => x.id === b.id)?.rating || 0, quote: current.find(x => x.id === b.id)?.quote || b.quote || '' })))
   }
 
@@ -296,9 +309,10 @@ function AppContent({ user, onLogout }) {
     <aside className={`sidebar ${mobileNav ? 'show' : ''}`}><div className="brand"><div className="brand-mark"><BookOpen size={23}/></div><div><strong>Thư Các</strong><span>THE READING ROOM</span></div></div><div className="sidebar-label">KHÔNG GIAN CỦA BẠN</div><nav className="main-nav"><button className={view === 'library' ? 'active' : ''} onClick={() => nav('library')}><LibraryBig size={19}/> Tủ sách <span>{books.length}</span></button><button className={view === 'ai' ? 'active' : ''} onClick={() => nav('ai')}><Sparkles size={19}/> Bàn luận với AI</button><button className={view === 'discussion' ? 'active' : ''} onClick={() => nav('discussion')}><MessageCircle size={19}/> Trang trao đổi</button></nav><div className="sidebar-rule"/><div className="sidebar-label">CÂU CHỮ ĐÁNG NHỚ</div><div className="sidebar-quote"><span>“</span><p>{books.find(b => b.quote)?.quote || 'Một cuốn sách hay là một cuộc trò chuyện không bao giờ kết thúc.'}</p><div>— {books.find(b => b.quote)?.title || 'THƯ CÁC'}</div></div><div className="sidebar-bottom"><button onClick={onLogout}><LogOut size={16}/> Đăng xuất · {user}</button></div></aside>
     {mobileNav && <div className="nav-scrim" onClick={() => setMobileNav(false)}/>}
     <main className="main-area"><header className="topbar"><button className="mobile-menu icon-button" onClick={() => setMobileNav(true)} aria-label="Mở menu"><Menu size={22}/></button><div className="breadcrumb">Không gian đọc <ChevronRight size={14}/> <b>{{library:'Tủ sách của tôi',ai:'Bàn luận với AI',discussion:'Trang trao đổi'}[view]}</b></div><div className="top-actions"><div className="today-pill"><span className="sun-dot"/> MỘT NGÀY ĐẸP ĐỂ ĐỌC SÁCH</div><button className="avatar" title={`Hồ sơ ${user}`} onClick={onLogout}>{user[0].toUpperCase()}</button></div></header>
-      <div className="content">{view === 'library' ? <><LibraryIntro user={user} books={books} recent={recent} progress={progress} query={query} setQuery={setQuery} onRead={openBook} onUpload={() => setUploadOpen(true)} nav={nav}/><section className="library-section"><div className="section-heading"><div><div className="eyebrow small">BỘ SƯU TẬP CỦA BẠN</div><h2>Tủ sách của tôi <span>({books.length})</span></h2></div><button className="outline-btn" onClick={() => setUploadOpen(true)}><Plus size={17}/> Thêm EPUB / PDF</button></div><div className="library-toolbar"><div className="tabs"><button className={tab === 'all' ? 'selected' : ''} onClick={() => setTab('all')}>Tất cả <span>{books.length}</span></button><button className={tab === 'reading' ? 'selected' : ''} onClick={() => setTab('reading')}>Đang đọc</button><button className={tab === 'saved' ? 'selected' : ''} onClick={() => setTab('saved')}>Đã đánh dấu</button></div><div className="search-box"><Search size={17}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Tìm tên, tác giả, trích dẫn..." aria-label="Tìm sách"/></div></div><div className="hub-filters"><select value={genreFilter} onChange={e=>setGenreFilter(e.target.value)} aria-label="Lọc thể loại"><option value="">Mọi thể loại</option>{[...new Set(books.map(b=>b.genre).filter(Boolean))].map(x=><option key={x} value={x}>{x}</option>)}</select><select value={tagFilter} onChange={e=>setTagFilter(e.target.value)} aria-label="Lọc thẻ"><option value="">Mọi thẻ</option>{[...new Set(books.flatMap(b=>b.tags||[]))].map(x=><option key={x} value={x}>{x}</option>)}</select><select value={uploaderFilter} onChange={e=>setUploaderFilter(e.target.value)} aria-label="Lọc người đóng góp"><option value="">Mọi người đóng góp</option>{[...new Set(books.map(b=>b.uploader).filter(Boolean))].map(x=><option key={x} value={x}>{x}</option>)}</select><select value={sortBy} onChange={e=>setSortBy(e.target.value)} aria-label="Sắp xếp sách"><option value="new">Mới tải lên</option><option value="hot">Thảo luận nhiều</option></select></div><div className="shelf-stage"><div className="shelf-back"><div className="books-grid">{filtered.map((book,index) => <div className="shelf-item" key={book.id} style={{'--i':index}}><button className="cover-button" onClick={() => openBook(book)} aria-label={`Đọc ${book.title}`}><Cover book={book}/></button><div className="book-meta"><div><h3>{book.title}</h3><p>{book.author}</p><small className="card-uploader">{book.visibility === 'public' ? `✦ Đóng góp bởi ${book.uploader}` : '🔒 Riêng tư'}{book.commentCount ? ` · ${book.commentCount} thảo luận` : ''}</small></div><button className="book-detail-button" onClick={() => setDetail(book)} aria-label={`Chi tiết ${book.title}`}>•••</button></div>{book.rating > 0 && <div className="card-rating">{'★'.repeat(book.rating)}{'☆'.repeat(5-book.rating)}</div>}{book.quote && <p className="card-quote">“{book.quote}”</p>}<div className="book-progress"><div style={{width:`${progress[book.id]?.percent || 0}%`}}/></div><small>{progress[book.id]?.percent ? `Đã đọc ${progress[book.id].percent}%` : 'Chưa bắt đầu'}</small></div>)}{books.length ? <div className="shelf-art-card"><div className="shelf-art-quote">“Tri thức là ánh sáng,<br/>đọc sách là cách để giữ<br/>ánh sáng ấy mãi trong tim.”<span>— THƯ CÁC —</span></div></div> : <button className="add-book-card" onClick={() => setUploadOpen(true)}><div className="add-icon"><Plus size={27}/></div><strong>Thêm một câu chuyện</strong><span>EPUB hoặc PDF của bạn</span></button>}</div></div><div className="shelf-board"/></div>{filtered.length === 0 && books.length > 0 && <div className="empty-state">Không tìm thấy sách. <button onClick={() => {setQuery('');setTab('all')}}>Xem tất cả</button></div>}</section><section className="quick-section"><button onClick={() => nav('ai')}><Sparkles size={21}/><span><strong>Bàn luận với AI</strong><small>Mang câu hỏi từ sách sang ChatGPT, Gemini, Claude</small></span><ArrowRight size={17}/></button><button onClick={() => nav('discussion')}><MessageCircle size={21}/><span><strong>Nhật ký trao đổi</strong><small>Ghi lại suy nghĩ sau mỗi trang sách</small></span><ArrowRight size={17}/></button><button onClick={saveBackup}><FileText size={21}/><span><strong>Sao lưu thư viện</strong><small>Tải sách và ghi chú về thiết bị</small></span><ArrowRight size={17}/></button><button onClick={() => backupInput.current?.click()}><CloudUpload size={21}/><span><strong>Khôi phục dữ liệu</strong><small>Nhập tệp sao lưu .zip</small></span><ArrowRight size={17}/></button><input ref={backupInput} type="file" accept=".zip,application/zip" hidden onChange={e => { if(e.target.files[0]) restoreBackup(e.target.files[0]); e.target.value = '' }}/></section></> : view === 'ai' ? <AiHub books={books} annotations={annotations} toast={setToast}/> : <Discussion books={books} onOpenBook={openBook} toast={setToast}/>}<footer className="site-footer">❧ &nbsp; THƯ CÁC · ĐỌC VÀ NGHĨ MỖI NGÀY &nbsp; ❧</footer></div></main>
+      {offline && <div className="local-banner"><strong>Chế độ thiết bị</strong><span>Sách và hồ sơ chỉ lưu trên trình duyệt này. Hãy sao lưu thường xuyên; thảo luận cộng đồng cần máy chủ.</span></div>}
+      <div className="content">{view === 'library' ? <><LibraryIntro user={user} books={books} recent={recent} progress={progress} query={query} setQuery={setQuery} onRead={openBook} onUpload={() => setUploadOpen(true)} nav={nav}/><section className="library-section"><div className="section-heading"><div><div className="eyebrow small">BỘ SƯU TẬP CỦA BẠN</div><h2>Tủ sách của tôi <span>({books.length})</span></h2></div><button className="outline-btn" onClick={() => setUploadOpen(true)}><Plus size={17}/> Thêm EPUB / PDF</button></div><div className="library-toolbar"><div className="tabs"><button className={tab === 'all' ? 'selected' : ''} onClick={() => setTab('all')}>Tất cả <span>{books.length}</span></button><button className={tab === 'reading' ? 'selected' : ''} onClick={() => setTab('reading')}>Đang đọc</button><button className={tab === 'saved' ? 'selected' : ''} onClick={() => setTab('saved')}>Đã đánh dấu</button></div><div className="search-box"><Search size={17}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Tìm tên, tác giả, trích dẫn..." aria-label="Tìm sách"/></div></div><div className="hub-filters"><select value={genreFilter} onChange={e=>setGenreFilter(e.target.value)} aria-label="Lọc thể loại"><option value="">Mọi thể loại</option>{[...new Set(books.map(b=>b.genre).filter(Boolean))].map(x=><option key={x} value={x}>{x}</option>)}</select><select value={tagFilter} onChange={e=>setTagFilter(e.target.value)} aria-label="Lọc thẻ"><option value="">Mọi thẻ</option>{[...new Set(books.flatMap(b=>b.tags||[]))].map(x=><option key={x} value={x}>{x}</option>)}</select><select value={uploaderFilter} onChange={e=>setUploaderFilter(e.target.value)} aria-label="Lọc người đóng góp"><option value="">Mọi người đóng góp</option>{[...new Set(books.map(b=>b.uploader).filter(Boolean))].map(x=><option key={x} value={x}>{x}</option>)}</select><select value={sortBy} onChange={e=>setSortBy(e.target.value)} aria-label="Sắp xếp sách"><option value="new">Mới tải lên</option><option value="hot">Thảo luận nhiều</option></select></div><div className="shelf-stage"><div className="shelf-back"><div className="books-grid">{filtered.map((book,index) => <div className="shelf-item" key={book.id} style={{'--i':index}}><button className="cover-button" onClick={() => openBook(book)} aria-label={`Đọc ${book.title}`}><Cover book={book}/></button><div className="book-meta"><div><h3>{book.title}</h3><p>{book.author}</p><small className="card-uploader">{book.visibility === 'public' ? `✦ Đóng góp bởi ${book.uploader}` : '🔒 Riêng tư'}{book.commentCount ? ` · ${book.commentCount} thảo luận` : ''}</small></div><button className="book-detail-button" onClick={() => setDetail(book)} aria-label={`Chi tiết ${book.title}`}>•••</button></div>{book.rating > 0 && <div className="card-rating">{'★'.repeat(book.rating)}{'☆'.repeat(5-book.rating)}</div>}{book.quote && <p className="card-quote">“{book.quote}”</p>}<div className="book-progress"><div style={{width:`${progress[book.id]?.percent || 0}%`}}/></div><small>{progress[book.id]?.percent ? `Đã đọc ${progress[book.id].percent}%` : 'Chưa bắt đầu'}</small></div>)}{books.length ? <div className="shelf-art-card"><div className="shelf-art-quote">“Tri thức là ánh sáng,<br/>đọc sách là cách để giữ<br/>ánh sáng ấy mãi trong tim.”<span>— THƯ CÁC —</span></div></div> : <button className="add-book-card" onClick={() => setUploadOpen(true)}><div className="add-icon"><Plus size={27}/></div><strong>Thêm một câu chuyện</strong><span>EPUB hoặc PDF của bạn</span></button>}</div></div><div className="shelf-board"/></div>{filtered.length === 0 && books.length > 0 && <div className="empty-state">Không tìm thấy sách. <button onClick={() => {setQuery('');setTab('all')}}>Xem tất cả</button></div>}</section><section className="quick-section"><button onClick={() => nav('ai')}><Sparkles size={21}/><span><strong>Bàn luận với AI</strong><small>Mang câu hỏi từ sách sang ChatGPT, Gemini, Claude</small></span><ArrowRight size={17}/></button><button onClick={() => nav('discussion')}><MessageCircle size={21}/><span><strong>Nhật ký trao đổi</strong><small>Ghi lại suy nghĩ sau mỗi trang sách</small></span><ArrowRight size={17}/></button><button onClick={saveBackup}><FileText size={21}/><span><strong>Sao lưu thư viện</strong><small>Tải sách và ghi chú về thiết bị</small></span><ArrowRight size={17}/></button><button onClick={() => backupInput.current?.click()}><CloudUpload size={21}/><span><strong>Khôi phục dữ liệu</strong><small>Nhập tệp sao lưu .zip</small></span><ArrowRight size={17}/></button><input ref={backupInput} type="file" accept=".zip,application/zip" hidden onChange={e => { if(e.target.files[0]) restoreBackup(e.target.files[0]); e.target.value = '' }}/></section></> : view === 'ai' ? <AiHub books={books} annotations={annotations} toast={setToast}/> : offline ? <div className="offline-community"><MessageCircle size={32}/><h1>Thảo luận cộng đồng chưa kết nối</h1><p>Bạn vẫn có thể đọc, đánh dấu và ghi chú trên thiết bị này. Trang trao đổi sẽ hoạt động khi máy chủ cộng đồng được triển khai.</p></div> : <Discussion books={books} onOpenBook={openBook} toast={setToast}/>}<footer className="site-footer">❧ &nbsp; THƯ CÁC · ĐỌC VÀ NGHĨ MỖI NGÀY &nbsp; ❧</footer></div></main>
     <MusicDock/>
-    {uploadOpen && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setUploadOpen(false) }}><div className="upload-modal"><button className="modal-close icon-button" onClick={() => setUploadOpen(false)} aria-label="Đóng"><X size={20}/></button><div className="modal-emblem"><CloudUpload size={28}/></div><div className="eyebrow small">MỞ THÊM MỘT THẾ GIỚI</div><h2>Đưa sách lên kệ</h2><p>Tải EPUB hoặc PDF. Chọn giữ riêng hoặc chia sẻ với cộng đồng. Bìa thật sẽ được lấy từ tệp khi có.</p><div className="upload-options"><div className="visibility-options"><button type="button" className={visibility === 'private' ? 'chosen' : ''} onClick={() => setVisibility('private')}>🔒 Riêng tư</button><button type="button" className={visibility === 'public' ? 'chosen' : ''} onClick={() => setVisibility('public')}>✦ Công khai</button></div><input value={uploadGenre} onChange={e => setUploadGenre(e.target.value)} placeholder="Thể loại (tùy chọn)"/><input value={uploadTags} onChange={e => setUploadTags(e.target.value)} placeholder="Thẻ tìm kiếm, cách nhau bằng dấu phẩy"/><textarea value={uploadQuote} onChange={e => setUploadQuote(e.target.value)} rows="2" placeholder="Câu trích dẫn đại diện cho cuốn sách (tùy chọn)"/>{visibility === 'public' && <label className="rights-check"><input type="checkbox" checked={rights} onChange={e => setRights(e.target.checked)}/> Tôi có quyền chia sẻ tệp này với cộng đồng.</label>}</div><div className={`drop-zone ${dragging ? 'dragging' : ''}`} onDragOver={e => { e.preventDefault(); setDragging(true) }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); importFiles(e.dataTransfer.files) }} onClick={() => fileInput.current?.click()}><BookOpen size={29}/><strong>Kéo thả EPUB hoặc PDF</strong><span>hoặc nhấn để chọn từ thiết bị</span><input ref={fileInput} type="file" accept=".epub,.pdf,application/epub+zip,application/pdf" multiple hidden onChange={e => { importFiles(e.target.files); e.target.value = '' }}/></div><small>Hỗ trợ nhiều tệp · PDF có thể xuất thành EPUB nếu có lớp chữ</small></div></div>}
+    {uploadOpen && <div className="modal-backdrop" onMouseDown={e => { if (e.target === e.currentTarget) setUploadOpen(false) }}><div className="upload-modal"><button className="modal-close icon-button" onClick={() => setUploadOpen(false)} aria-label="Đóng"><X size={20}/></button><div className="modal-emblem"><CloudUpload size={28}/></div><div className="eyebrow small">MỞ THÊM MỘT THẾ GIỚI</div><h2>Đưa sách lên kệ</h2><p>Tải EPUB hoặc PDF. {offline ? 'Sách được lưu trên thiết bị này. Bìa thật sẽ được lấy từ tệp khi có.' : 'Chọn giữ riêng hoặc chia sẻ với cộng đồng. Bìa thật sẽ được lấy từ tệp khi có.'}</p><div className="upload-options"><div className="visibility-options"><button type="button" className={visibility === 'private' ? 'chosen' : ''} onClick={() => setVisibility('private')}>🔒 Riêng tư</button><button type="button" className={visibility === 'public' ? 'chosen' : ''} disabled={offline} title={offline ? 'Cần máy chủ cộng đồng để chia sẻ sách' : undefined} onClick={() => setVisibility('public')}>✦ Công khai</button></div><input value={uploadGenre} onChange={e => setUploadGenre(e.target.value)} placeholder="Thể loại (tùy chọn)"/><input value={uploadTags} onChange={e => setUploadTags(e.target.value)} placeholder="Thẻ tìm kiếm, cách nhau bằng dấu phẩy"/><textarea value={uploadQuote} onChange={e => setUploadQuote(e.target.value)} rows="2" placeholder="Câu trích dẫn đại diện cho cuốn sách (tùy chọn)"/>{visibility === 'public' && <label className="rights-check"><input type="checkbox" checked={rights} onChange={e => setRights(e.target.checked)}/> Tôi có quyền chia sẻ tệp này với cộng đồng.</label>}</div><div className={`drop-zone ${dragging ? 'dragging' : ''}`} onDragOver={e => { e.preventDefault(); setDragging(true) }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); importFiles(e.dataTransfer.files) }} onClick={() => fileInput.current?.click()}><BookOpen size={29}/><strong>Kéo thả EPUB hoặc PDF</strong><span>hoặc nhấn để chọn từ thiết bị</span><input ref={fileInput} type="file" accept=".epub,.pdf,application/epub+zip,application/pdf" multiple hidden onChange={e => { importFiles(e.target.files); e.target.value = '' }}/></div><small>Hỗ trợ nhiều tệp · PDF có thể xuất thành EPUB nếu có lớp chữ</small></div></div>}
     {detail && <BookDetail book={{...detail,coverUrl:detail.coverUrl || covers[detail.id]}} onClose={() => setDetail(null)} onRead={openBook} onDelete={removeBook} onUpdate={updateBook} onMerged={refreshServerBooks} toast={setToast}/>}
     {opening && <div className="opening-scene"><div className="opening-book"><Cover book={opening} size="hero"/><div className="opening-page"/></div><span>Đang mở “{opening.title}”</span></div>}
     {active && (active.type === 'pdf' ? <PdfReader key={active.id} bookInfo={active} onClose={() => setActive(null)} onReflow={() => setActive({ ...active, type: 'epub', reflow: true })} progress={progress[active.id]} setProgress={value => updateProgress(active.id, value)} toast={setToast}/> : <Reader key={active.id} bookInfo={active} onClose={() => setActive(null)} prefs={prefs} setPrefs={setPrefs} progress={progress[active.id]} setProgress={value => updateProgress(active.id, value)} annotations={annotations[active.id] || []} setAnnotations={value => updateAnnotations(active.id, value)} toast={setToast}/>)}
@@ -309,9 +323,23 @@ function AppContent({ user, onLogout }) {
 function App() {
   const [user, setUser] = useState(null)
   const [checking, setChecking] = useState(true)
-  useEffect(() => { fetch('/api/me').then(r => r.json()).then(data => setUser(data.user?.username || null)).catch(() => {}).finally(() => setChecking(false)) }, [])
+  const [offline, setOffline] = useState(false)
+  useEffect(() => {
+    fetch('/api/me')
+      .then(async response => {
+        const data = await readApiJson(response)
+        if (!response.ok) throw new Error(data.error || 'Máy chủ đọc sách chưa sẵn sàng.')
+        setUser(data.user?.username || null)
+      })
+      .catch(error => {
+        console.warn('Không kết nối được API; chuyển sang chế độ thiết bị.', error)
+        setOffline(true)
+        setUser(localSession())
+      })
+      .finally(() => setChecking(false))
+  }, [])
   if (checking) return <div className="boot-screen"><BookOpen size={35}/><span>Đang mở Thư Các...</span></div>
-  return user ? <AppContent key={user} user={user} onLogout={async () => { await fetch('/api/auth/logout', { method: 'POST' }); setUser(null) }}/> : <Auth onLogin={setUser}/>
+  return user ? <AppContent key={user} user={user} offline={offline} onLogout={async () => { if (offline) clearLocalSession(); else await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {}); setUser(null) }}/> : <Auth offline={offline} onLogin={setUser}/>
 }
 
 function Reader({ bookInfo, onClose, prefs, setPrefs, progress, setProgress, annotations, setAnnotations, toast }) {
@@ -349,7 +377,7 @@ function Reader({ bookInfo, onClose, prefs, setPrefs, progress, setProgress, ann
 
   useEffect(() => {
     if (bookInfo.visibility !== 'public') return
-    fetch(`/api/comments?bookId=${bookInfo.id}`).then(r=>r.json()).then(data=>setComments(data.comments||[])).catch(()=>{})
+    fetch(`/api/comments?bookId=${bookInfo.id}`).then(r=>readApiJson(r)).then(data=>setComments(data.comments||[])).catch(()=>{})
   }, [bookInfo.id, bookInfo.visibility])
 
   useEffect(() => {
@@ -451,13 +479,13 @@ function Reader({ bookInfo, onClose, prefs, setPrefs, progress, setProgress, ann
   async function addComment() {
     if (!selection || !commentBody.trim()) { toast('Hãy viết bình luận cho đoạn đã chọn.'); return }
     const response = await fetch('/api/comments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bookId: bookInfo.id, cfi: selection.cfi, quote: selection.text, body: commentBody, tag: commentTag }) })
-    const result = await response.json()
+    const result = await readApiJson(response)
     if (!response.ok) { toast(result.error || 'Không đăng được bình luận.'); return }
     setComments(v => [result.comment, ...v]); setCommentBody(''); setSelection(null); setPanel('social'); toast('Đã đăng bình luận theo đoạn văn')
   }
   async function voteComment(comment, value) {
     const response = await fetch(`/api/comments/${comment.id}/vote`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: comment.myVote === value ? 0 : value }) })
-    const result = await response.json()
+    const result = await readApiJson(response)
     if (!response.ok) { toast(result.error || 'Không thể bình chọn.'); return }
     setComments(v => v.map(c => c.id === comment.id ? result.comment : c))
   }

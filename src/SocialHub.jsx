@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { readApiJson } from './api'
 import { ArrowRight, BookOpen, ChevronUp, ChevronDown, Flame, MessageCircle, ShieldCheck, Trophy } from 'lucide-react'
 
 const tags = ['Tất cả','Bổ sung kiến thức','Phản biện','Cảm nhận']
@@ -10,7 +11,7 @@ export default function SocialHub({ books, onOpenBook, toast }) {
   const [tag, setTag] = useState('Tất cả')
   const [topic, setTopic] = useState(0)
   useEffect(() => {
-    Promise.all([fetch('/api/comments').then(r=>r.json()),fetch('/api/arena').then(r=>r.json()),fetch('/api/leaderboard').then(r=>r.json())])
+    Promise.all([fetch('/api/comments').then(r=>readApiJson(r)),fetch('/api/arena').then(r=>readApiJson(r)),fetch('/api/leaderboard').then(r=>readApiJson(r))])
       .then(([c,a,l]) => { setComments(c.comments||[]);setTopics(a.topics||[]);setLeaders(l.users||[]) }).catch(()=>toast('Không tải được thảo luận cộng đồng.'))
   }, [])
   const visible = comments.filter(c => tag==='Tất cả'||c.tag===tag)
@@ -18,7 +19,7 @@ export default function SocialHub({ books, onOpenBook, toast }) {
   const debate = selected ? comments.filter(c => c.bookId===selected.book_id && c.quote===selected.quote).sort((a,b)=>b.score-a.score) : []
   async function vote(id, value) {
     const response=await fetch(`/api/comments/${id}/vote`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({value})})
-    const result=await response.json()
+    const result=await readApiJson(response)
     if (!response.ok) {toast(result.error||'Không thể bình chọn.');return}
     setComments(v=>v.map(c=>c.id===id?result.comment:c))
   }
