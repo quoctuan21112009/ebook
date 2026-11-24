@@ -1,0 +1,33 @@
+.quote-studio-backdrop{position:fixed;inset:0;z-index:110;background:#071c19d9;display:grid;place-items:center;padding:20px;overflow:auto}
+.quote-studio{width:min(1040px,100%);max-height:calc(100vh - 40px);overflow:auto;border:1px solid #b99762;border-radius:18px;background:#f9f0de;color:#1e3b2d;box-shadow:0 25px 80px #0008}
+.quote-studio>header{display:flex;align-items:center;justify-content:space-between;padding:20px 28px;border-bottom:1px solid #ddc6a2;background:#173a2b;color:#fff4df}
+.quote-studio>header span{font-size:10px;letter-spacing:2px;color:#e4bd7b;font-weight:700}
+.quote-studio>header h2{font:700 25px 'Noto Serif',Georgia,serif;margin:5px 0 0}
+.quote-studio>header button{background:transparent;color:inherit}
+.quote-studio-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.9fr);gap:25px;padding:25px}
+.quote-studio-preview{min-height:430px;display:grid;place-items:center;border-radius:12px;background:#ded1b7;overflow:hidden}
+.quote-studio-preview img{display:block;width:100%;max-height:min(68vh,700px);object-fit:contain}
+.quote-studio-controls{min-width:0;display:flex;flex-direction:column;gap:12px}
+.quote-studio-controls p{font:15px/1.65 'Noto Serif',Georgia,serif;margin:0 0 8px}
+.quote-studio-controls label{font-size:10px;font-weight:700;letter-spacing:1.4px;color:#6e5a3b;margin-top:7px}
+.quote-scene-options{display:flex;flex-wrap:wrap;gap:8px}
+.quote-scene-options button{background:#fffaf0;border:1px solid #c9ab7b;border-radius:40px;color:#2a4e38;padding:9px 13px;font-weight:700;font-size:11px}
+.quote-scene-options button.selected{background:#234f39;color:#fff8e9}
+.quote-studio-controls textarea,.quote-studio-controls select{box-sizing:border-box;width:100%;border:1px solid #cdb38b;border-radius:8px;padding:11px;background:#fffdf8;color:#254331;font:13px/1.5 'Be Vietnam Pro',sans-serif}
+.quote-studio-controls textarea{resize:vertical}
+.quote-studio-actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:8px}
+.quote-studio-actions button{display:flex;align-items:center;justify-content:center;gap:8px;flex:1;min-width:140px;padding:12px;border:1px solid #2c5940;border-radius:8px;background:#fff9ed;color:#1d4b31;font-weight:700}
+.quote-studio-actions button:last-child{background:#24543a;color:#fff8e9}
+.quote-studio-actions button:disabled{opacity:.5;cursor:not-allowed}
+.quote-studio-controls small{color:#6d755e;line-height:1.5}
+@media(max-width:700px){.quote-studio-backdrop{padding:8px;place-items:start center}.quote-studio{max-height:calc(100dvh - 16px)}.quote-studio>header{padding:14px 17px}.quote-studio>header h2{font-size:19px}.quote-studio-layout{grid-template-columns:1fr;padding:14px;gap:15px}.quote-studio-preview{min-height:0}.quote-studio-preview img{max-height:43vh}.quote-studio-controls p{font-size:13px}}
+.quote-create-btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:9px;padding:12px;border-radius:7px;border:1px solid #ba8b4c;background:#f8ead0;color:#245038;font-size:12px;font-weight:700}
+.community-image-picker{display:flex;align-items:center;gap:6px;padding:8px 10px;border:1px solid #cba972;border-radius:7px;cursor:pointer;color:#28533a;font-size:11px;font-weight:700}
+.community-image-remove{background:transparent;color:#8b5438;font-size:11px}
+.community-post-image{display:block;margin:12px 0;max-width:420px;border-radius:10px;overflow:hidden;background:#eadbc1}
+.community-post-image img{display:block;width:100%;max-height:520px;object-fit:contain}
+.music-file{display:block;margin:11px 0;padding:10px;border:1px dashed #bc995f;border-radius:7px;color:#28533a;font-size:11px;font-weight:700;cursor:pointer}
+.music-local{display:grid;gap:6px;min-width:0;padding:9px;background:#f0eadc;border-radius:7px;color:#31503b;font-size:10px}
+.music-local strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.music-local audio{width:100%;height:36px}
+.music-local button{justify-self:start;background:none;color:#965b36;font-size:10px}

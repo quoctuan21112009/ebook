@@ -1,9 +1,11 @@
 import { randomUUID } from 'node:crypto'
+import { join } from 'node:path'
+import multer from 'multer'
 
 const clean = (value, limit) => String(value || '').trim().slice(0, limit)
 const allowedKinds = new Set(['feed', 'forum'])
 
-export function registerCommunityRoutes(app, db, currentUser, requireUser) {
+export function registerCommunityRoutes(app, db, currentUser, requireUser, storage) {
   db.exec(`CREATE TABLE IF NOT EXISTS community_pages (id TEXT PRIMARY KEY, owner_id TEXT NOT NULL, name TEXT NOT NULL COLLATE NOCASE UNIQUE, description TEXT NOT NULL, created INTEGER NOT NULL);
   CREATE TABLE IF NOT EXISTS community_follows (user_id TEXT NOT NULL, page_id TEXT NOT NULL, PRIMARY KEY(user_id,page_id));
   CREATE TABLE IF NOT EXISTS community_posts (id TEXT PRIMARY KEY, author_id TEXT NOT NULL, page_id TEXT, kind TEXT NOT NULL, body TEXT NOT NULL, book_id TEXT, created INTEGER NOT NULL);
@@ -13,6 +15,9 @@ export function registerCommunityRoutes(app, db, currentUser, requireUser) {
   CREATE TABLE IF NOT EXISTS community_reports (user_id TEXT NOT NULL, post_id TEXT NOT NULL, reason TEXT NOT NULL, created INTEGER NOT NULL, PRIMARY KEY(user_id,post_id));
   CREATE INDEX IF NOT EXISTS idx_community_posts_created ON community_posts(created DESC);
   CREATE INDEX IF NOT EXISTS idx_community_replies_post ON community_replies(post_id);`)
+  try { db.exec('ALTER TABLE community_posts ADD COLUMN image_path TEXT') } catch {}
+  try { db.exec('ALTER TABLE community_posts ADD COLUMN image_mime TEXT') } catch {}
+  const imageUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 800 * 1024, files: 1 } }).single('image')
 
   function overview(req, res) {
     const user = currentUser(req)
@@ -22,7 +27,7 @@ export function registerCommunityRoutes(app, db, currentUser, requireUser) {
       EXISTS(SELECT 1 FROM community_follows f WHERE f.page_id=p.id AND f.user_id=?) followed,
       (SELECT count(*) FROM community_posts s WHERE s.page_id=p.id) posts
       FROM community_pages p JOIN users u ON u.id=p.owner_id ORDER BY followers DESC,p.created DESC LIMIT 100`).all(uid)
-    const posts = db.prepare(`SELECT p.id,p.page_id pageId,p.kind,p.body,p.book_id bookId,p.created,u.username author,g.name pageName,b.title bookTitle,
+    const posts = db.prepare(`SELECT p.id,p.page_id pageId,p.kind,p.body,p.book_id bookId,p.created,p.image_path imagePath,u.username author,g.name pageName,b.title bookTitle,
       (SELECT count(*) FROM community_likes l WHERE l.post_id=p.id) likes,
       EXISTS(SELECT 1 FROM community_likes l WHERE l.post_id=p.id AND l.user_id=?) liked,
       EXISTS(SELECT 1 FROM community_saves s WHERE s.post_id=p.id AND s.user_id=?) saved,
@@ -30,7 +35,7 @@ export function registerCommunityRoutes(app, db, currentUser, requireUser) {
       FROM community_posts p JOIN users u ON u.id=p.author_id LEFT JOIN community_pages g ON g.id=p.page_id LEFT JOIN books b ON b.id=p.book_id
       ORDER BY p.created DESC LIMIT 100`).all(uid, uid)
     const replies = db.prepare(`SELECT r.id,r.post_id postId,r.body,r.created,u.username author FROM community_replies r JOIN users u ON u.id=r.author_id WHERE r.post_id=? ORDER BY r.created ASC LIMIT 100`)
-    res.json({ pages, posts: posts.map(post => ({ ...post, replies: replies.all(post.id) })) })
+    res.json({ pages, posts: posts.map(({ imagePath, ...post }) => ({ ...post, imageUrl: imagePath ? `/api/community/posts/${post.id}/image` : null, replies: replies.all(post.id) })) })
   }
   app.get('/api/community', overview)
   app.post('/api/community/pages', requireUser, (req, res) => {
@@ -50,17 +55,34 @@ export function registerCommunityRoutes(app, db, currentUser, requireUser) {
     else db.prepare('INSERT INTO community_follows VALUES (?,?)').run(...params)
     overview(req, res)
   })
-  app.post('/api/community/posts', requireUser, (req, res) => {
-    const body = clean(req.body.body, 3000)
-    const kind = clean(req.body.kind, 20)
-    const pageId = clean(req.body.pageId, 50) || null
-    const bookId = clean(req.body.bookId, 50) || null
-    if (!allowedKinds.has(kind) || body.length < 3) return res.status(400).json({ error: 'Bài viết cần ít nhất 3 ký tự.' })
-    if (pageId && !db.prepare('SELECT id FROM community_pages WHERE id=? AND owner_id=?').get(pageId, req.user.id)) return res.status(403).json({ error: 'Chỉ người tạo fanpage được đăng bài lên trang.' })
-    if (bookId && !db.prepare("SELECT id FROM books WHERE id=? AND visibility='public'").get(bookId)) return res.status(400).json({ error: 'Chỉ có thể gắn sách công khai.' })
-    if (db.prepare('SELECT count(*) count FROM community_posts WHERE author_id=? AND created>?').get(req.user.id, Date.now()-86400000).count >= 20) return res.status(429).json({ error: 'Bạn đã đăng 20 bài hôm nay. Hãy quay lại ngày mai.' })
-    db.prepare('INSERT INTO community_posts VALUES (?,?,?,?,?,?,?)').run(randomUUID(), req.user.id, pageId, kind, body, bookId, Date.now())
-    overview(req, res)
+  app.get('/api/community/posts/:id/image', async (req, res, next) => {
+    try {
+      const post = db.prepare('SELECT image_path,image_mime FROM community_posts WHERE id=?').get(req.params.id)
+      if (!post?.image_path) return res.status(404).end()
+      res.set('Cache-Control', 'public, max-age=86400')
+      res.type(post.image_mime || 'image/webp').send(await storage.readFile(post.image_path))
+    } catch (error) { next(error) }
+  })
+  app.post('/api/community/posts', requireUser, imageUpload, async (req, res, next) => {
+    try {
+      const body = clean(req.body.body, 3000)
+      const kind = clean(req.body.kind, 20)
+      const pageId = clean(req.body.pageId, 50) || null
+      const bookId = clean(req.body.bookId, 50) || null
+      if (!allowedKinds.has(kind) || body.length < 3) return res.status(400).json({ error: 'Bài viết cần ít nhất 3 ký tự.' })
+      if (pageId && !db.prepare('SELECT id FROM community_pages WHERE id=? AND owner_id=?').get(pageId, req.user.id)) return res.status(403).json({ error: 'Chỉ người tạo fanpage được đăng bài lên trang.' })
+      if (bookId && !db.prepare("SELECT id FROM books WHERE id=? AND visibility='public'").get(bookId)) return res.status(400).json({ error: 'Chỉ có thể gắn sách công khai.' })
+      if (db.prepare('SELECT count(*) count FROM community_posts WHERE author_id=? AND created>?').get(req.user.id, Date.now()-86400000).count >= 20) return res.status(429).json({ error: 'Bạn đã đăng 20 bài hôm nay. Hãy quay lại ngày mai.' })
+      const image = req.file
+      const webp = image?.buffer.subarray(0, 4).toString() === 'RIFF' && image?.buffer.subarray(8, 12).toString() === 'WEBP'
+      if (image && (!webp || image.mimetype !== 'image/webp')) return res.status(400).json({ error: 'Ảnh cần được nén sang WebP trước khi đăng.' })
+      const id = randomUUID()
+      const imagePath = image ? join(storage.files, `${id}.post.webp`) : null
+      if (imagePath) await storage.writeFile(imagePath, image.buffer)
+      try { db.prepare('INSERT INTO community_posts(id,author_id,page_id,kind,body,book_id,created,image_path,image_mime) VALUES (?,?,?,?,?,?,?,?,?)').run(id, req.user.id, pageId, kind, body, bookId, Date.now(), imagePath, imagePath ? 'image/webp' : null) }
+      catch (error) { if (imagePath) await storage.unlink(imagePath).catch(() => {}); throw error }
+      overview(req, res)
+    } catch (error) { next(error) }
   })
   app.post('/api/community/posts/:id/replies', requireUser, (req, res) => {
     const body = clean(req.body.body, 1000)
@@ -78,13 +100,16 @@ export function registerCommunityRoutes(app, db, currentUser, requireUser) {
       overview(req, res)
     })
   }
-  app.delete('/api/community/posts/:id', requireUser, (req, res) => {
-    const post = db.prepare('SELECT author_id FROM community_posts WHERE id=?').get(req.params.id)
-    if (!post) return res.status(404).json({ error: 'Không tìm thấy bài viết.' })
-    if (post.author_id !== req.user.id) return res.status(403).json({ error: 'Chỉ tác giả được xóa bài viết.' })
-    for (const table of ['community_replies','community_likes','community_saves','community_reports']) db.prepare(`DELETE FROM ${table} WHERE post_id=?`).run(req.params.id)
-    db.prepare('DELETE FROM community_posts WHERE id=?').run(req.params.id)
-    overview(req, res)
+  app.delete('/api/community/posts/:id', requireUser, async (req, res, next) => {
+    try {
+      const post = db.prepare('SELECT author_id,image_path FROM community_posts WHERE id=?').get(req.params.id)
+      if (!post) return res.status(404).json({ error: 'Không tìm thấy bài viết.' })
+      if (post.author_id !== req.user.id) return res.status(403).json({ error: 'Chỉ tác giả được xóa bài viết.' })
+      for (const table of ['community_replies','community_likes','community_saves','community_reports']) db.prepare(`DELETE FROM ${table} WHERE post_id=?`).run(req.params.id)
+      db.prepare('DELETE FROM community_posts WHERE id=?').run(req.params.id)
+      if (post.image_path) await storage.unlink(post.image_path).catch(() => {})
+      overview(req, res)
+    } catch (error) { next(error) }
   })
   app.post('/api/community/posts/:id/report', requireUser, (req, res) => {
     if (!db.prepare('SELECT id FROM community_posts WHERE id=?').get(req.params.id)) return res.status(404).json({ error: 'Không tìm thấy bài viết.' })

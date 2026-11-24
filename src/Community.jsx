@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { ArrowRight, Bookmark, BookOpen, Flag, Heart, MessageCircle, Plus, Search, Send, Trash2, Users } from 'lucide-react'
+import { ArrowRight, Bookmark, BookOpen, Flag, Heart, ImagePlus, MessageCircle, Plus, Search, Send, Trash2, Users } from 'lucide-react'
 import { readApiJson } from './api'
+import { compressImage } from './quote-image'
+import { deleteFile, getFile, putFile } from './storage'
 import { localCommunity } from './local-community'
 import SocialHub from './SocialHub'
 import './community.css'
@@ -9,7 +11,9 @@ const sections = [{ id: 'feed', title: 'Bảng tin' }, { id: 'forum', title: 'Di
 
 export default function Community({ mode, user, books, offline, onOpenBook, toast, onNavigate }) {
   const [data, setData] = useState({ pages: [], posts: [] })
+  const [imageUrls, setImageUrls] = useState({})
   const [body, setBody] = useState('')
+  const [image, setImage] = useState(null)
   const [bookId, setBookId] = useState('')
   const [pageId, setPageId] = useState('')
   const [pageName, setPageName] = useState('')
@@ -26,6 +30,19 @@ export default function Community({ mode, user, books, offline, onOpenBook, toas
   const ownPages = data.pages.filter(page => page.owner === user)
 
   useEffect(() => {
+    if (!offline) return
+    let active = true
+    const urls = []
+    Promise.all(data.posts.filter(post => post.imageKey).map(async post => {
+      const blob = await getFile(post.imageKey)
+      if (!blob) return null
+      const url = URL.createObjectURL(blob); urls.push(url)
+      return [post.id, url]
+    })).then(entries => { if (active) setImageUrls(Object.fromEntries(entries.filter(Boolean))) }).catch(() => {})
+    return () => { active = false; urls.forEach(URL.revokeObjectURL) }
+  }, [offline, data.posts])
+
+  useEffect(() => {
     let active = true
     if (offline) { setData(localCommunity(user)); return }
     fetch('/api/community').then(async response => {
@@ -40,7 +57,20 @@ export default function Community({ mode, user, books, offline, onOpenBook, toas
     if (busy) return
     setBusy(true)
     try {
-      if (offline) { setData(localCommunity(user, action, payload)); return true }
+      if (offline) {
+        if (action === 'post' && payload.image) {
+          payload.id = crypto.randomUUID()
+          payload.imageKey = `community-image:${payload.id}`
+          await putFile(payload.imageKey, payload.image)
+        }
+        if (action === 'delete') {
+          const imageKey = data.posts.find(post => post.id === payload.id)?.imageKey
+          const next = localCommunity(user, action, payload)
+          if (imageKey) await deleteFile(imageKey)
+          setData(next); return true
+        }
+        setData(localCommunity(user, action, payload)); return true
+      }
       const paths = {
         page: ['/api/community/pages', 'POST'], follow: [`/api/community/pages/${payload.id}/follow`, 'POST'],
         post: ['/api/community/posts', 'POST'], reply: [`/api/community/posts/${payload.id}/replies`, 'POST'],
@@ -48,7 +78,14 @@ export default function Community({ mode, user, books, offline, onOpenBook, toas
         delete: [`/api/community/posts/${payload.id}`, 'DELETE'], report: [`/api/community/posts/${payload.id}/report`, 'POST'],
       }
       const [path, method] = paths[action]
-      const response = await fetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: method === 'DELETE' ? undefined : JSON.stringify(payload) })
+      let options = { method, headers: { 'Content-Type': 'application/json' }, body: method === 'DELETE' ? undefined : JSON.stringify(payload) }
+      if (action === 'post' && payload.image) {
+        const form = new FormData()
+        for (const [key, value] of Object.entries(payload)) if (key !== 'image' && value != null) form.append(key, value)
+        form.append('image', payload.image, 'chia-se.webp')
+        options = { method, body: form }
+      }
+      const response = await fetch(path, options)
       const result = await readApiJson(response)
       if (!response.ok) throw new Error(result.error || 'Chưa lưu được thay đổi.')
       if (action !== 'report') setData(result)
@@ -62,8 +99,9 @@ export default function Community({ mode, user, books, offline, onOpenBook, toas
     const content = body.trim()
     if (content.length < 3) { toast('Bài viết cần ít nhất 3 ký tự.'); return }
     const book = publicBooks.find(item => item.id === bookId)
-    const ok = await change('post', { kind: mode === 'forum' ? 'forum' : 'feed', body: content, pageId: mode === 'pages' ? pageId : null, bookId: book?.id || null, bookTitle: book?.title || null })
-    if (ok) { setBody(''); setBookId(''); toast('Đã đăng bài viết.') }
+    const payload = { kind: mode === 'forum' ? 'forum' : 'feed', body: content, pageId: mode === 'pages' ? pageId : null, bookId: book?.id || null, bookTitle: book?.title || null, image }
+    const ok = await change('post', payload)
+    if (ok) { setBody(''); setBookId(''); setImage(null); toast('Đã đăng bài viết.') }
   }
   async function submitPage(event) {
     event.preventDefault()
@@ -93,9 +131,9 @@ export default function Community({ mode, user, books, offline, onOpenBook, toas
     <div className="community-tabs">{sections.map(section => <button key={section.id} className={mode === section.id ? 'selected' : ''} onClick={() => onNavigate(section.id)}>{section.title}</button>)}</div>
     <div className="community-grid"><div className="community-main">
       {mode === 'pages' && <div className="community-page-list"><div className="community-title-row"><h2>Khám phá fanpage</h2><button onClick={() => setCreatingPage(value => !value)}><Plus size={16}/> Tạo fanpage</button></div>{creatingPage && <form className="community-page-form" onSubmit={submitPage}><input value={pageName} onChange={event => setPageName(event.target.value)} placeholder="Tên fanpage" maxLength={60}/><textarea value={pageDescription} onChange={event => setPageDescription(event.target.value)} placeholder="Giới thiệu chủ đề của trang..." maxLength={500} rows={3}/><button disabled={busy}>Tạo trang</button></form>}<div className="community-page-cards">{data.pages.length ? data.pages.map(page => <article className={`community-page-card ${selectedPage === page.id ? 'active' : ''}`} key={page.id}><button className="community-page-icon" onClick={() => setSelectedPage(selectedPage === page.id ? '' : page.id)} aria-label={`Xem ${page.name}`}>✦</button><div><button className="community-page-name" onClick={() => setSelectedPage(selectedPage === page.id ? '' : page.id)}>{page.name}</button><p>{page.description}</p><small>Bởi {page.owner} · {page.followers} theo dõi · {page.posts} bài</small></div><button className="community-follow" onClick={() => change('follow', { id: page.id })} disabled={busy}>{page.followed ? 'Đang theo dõi' : 'Theo dõi'}</button></article>) : <p className="community-empty">Chưa có fanpage. Hãy tạo trang đầu tiên cho chủ đề bạn yêu thích.</p>}</div>{activePage && <button className="community-clear" onClick={() => setSelectedPage('')}>Đang xem {activePage.name} · Hiện tất cả ↗</button>}</div>}
-      {(mode !== 'pages' || ownPages.length > 0) && <form className="community-composer" onSubmit={submitPost}><div className="community-compose-head"><span className="community-avatar">{user[0]?.toUpperCase()}</span><strong>{user}</strong><small>{mode === 'forum' ? 'Tạo chủ đề mới' : mode === 'pages' ? 'Đăng lên fanpage của bạn' : 'Chia sẻ với cộng đồng'}</small></div><textarea value={body} onChange={event => setBody(event.target.value)} placeholder={mode === 'forum' ? 'Bạn muốn hỏi hoặc bàn luận điều gì?' : 'Cuốn sách nào đang khiến bạn suy nghĩ?'} maxLength={3000} rows={4}/><div className="community-compose-actions">{mode === 'pages' && <select value={pageId} onChange={event => setPageId(event.target.value)} required><option value="">Chọn fanpage của bạn</option>{ownPages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select>}<select value={bookId} onChange={event => setBookId(event.target.value)}><option value="">Gắn sách công khai (tùy chọn)</option>{publicBooks.map(book => <option key={book.id} value={book.id}>{book.title}</option>)}</select><button className="community-publish" disabled={busy}><Send size={16}/> Đăng bài</button></div></form>}
+      {(mode !== 'pages' || ownPages.length > 0) && <form className="community-composer" onSubmit={submitPost}><div className="community-compose-head"><span className="community-avatar">{user[0]?.toUpperCase()}</span><strong>{user}</strong><small>{mode === 'forum' ? 'Tạo chủ đề mới' : mode === 'pages' ? 'Đăng lên fanpage của bạn' : 'Chia sẻ với cộng đồng'}</small></div><textarea value={body} onChange={event => setBody(event.target.value)} placeholder={mode === 'forum' ? 'Bạn muốn hỏi hoặc bàn luận điều gì?' : 'Cuốn sách nào đang khiến bạn suy nghĩ?'} maxLength={3000} rows={4}/><div className="community-compose-actions"><label className="community-image-picker"><ImagePlus size={17}/> {image ? `Ảnh đã nén · ${Math.round(image.size / 1024)} KB` : "Thêm ảnh"}<input type="file" accept="image/*" hidden onChange={async event => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; try { const compressed = await compressImage(file); if (compressed.size > 800 * 1024) throw new Error("Ảnh sau nén vẫn quá lớn (giới hạn 800 KB). Hãy chọn ảnh khác."); setImage(compressed) } catch (error) { toast(error.message) } }}/></label>{image && <button type="button" className="community-image-remove" onClick={() => setImage(null)}>Bỏ ảnh</button>}{mode === 'pages' && <select value={pageId} onChange={event => setPageId(event.target.value)} required><option value="">Chọn fanpage của bạn</option>{ownPages.map(page => <option key={page.id} value={page.id}>{page.name}</option>)}</select>}<select value={bookId} onChange={event => setBookId(event.target.value)}><option value="">Gắn sách công khai (tùy chọn)</option>{publicBooks.map(book => <option key={book.id} value={book.id}>{book.title}</option>)}</select><button className="community-publish" disabled={busy}><Send size={16}/> Đăng bài</button></div></form>}
       <div className="community-toolbar"><div className="community-search"><Search size={16}/><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Tìm bài viết, tác giả, sách..."/></div><button className={onlyFollowed ? 'selected' : ''} onClick={() => setOnlyFollowed(value => !value)}>Đang theo dõi</button><button className={onlySaved ? 'selected' : ''} onClick={() => setOnlySaved(value => !value)}>Đã lưu</button>{author && <button onClick={() => setAuthor('')}>Bởi {author} ×</button>}</div>
-      <div className="community-posts">{visible.length ? visible.map(post => <article className="community-post" key={post.id}><div className="community-post-head"><span className="community-avatar">{post.author[0]?.toUpperCase()}</span><div><button onClick={() => setAuthor(post.author)}>{post.author}</button><small>{post.pageName ? `trong ${post.pageName} · ` : ''}{new Date(post.created).toLocaleDateString('vi-VN')} · {post.kind === 'forum' ? 'Diễn đàn' : 'Bảng tin'}</small></div>{post.author === user && <button className="community-delete" onClick={() => { if (confirm('Xóa bài viết này?')) change('delete', { id: post.id }) }} title="Xóa bài"><Trash2 size={16}/></button>}</div><p className="community-post-body">{post.body}</p>{post.bookId && <button className="community-book-link" onClick={() => { const book = books.find(item => item.id === post.bookId); if (book) onOpenBook(book); else toast('Cuốn sách này không còn trong thư viện.') }}><BookOpen size={17}/> {post.bookTitle || 'Sách liên quan'} <ArrowRight size={14}/></button>}<div className="community-post-actions"><button className={post.liked ? 'selected' : ''} onClick={() => change('like', { id: post.id })}><Heart size={16} fill={post.liked ? 'currentColor' : 'none'}/> {post.likes}</button><span><MessageCircle size={16}/> {post.replyCount}</span><button className={post.saved ? 'selected' : ''} onClick={() => change('save', { id: post.id })}><Bookmark size={16} fill={post.saved ? 'currentColor' : 'none'}/> {post.saved ? 'Đã lưu' : 'Lưu'}</button><button className="community-report" onClick={() => { const reason = prompt('Vì sao bạn báo cáo bài viết này?'); if (reason?.trim()) change('report', { id: post.id, reason: reason.trim() }).then(ok => { if (ok) toast('Đã gửi báo cáo.') }) }} aria-label="Báo cáo bài viết"><Flag size={15}/></button></div><div className="community-replies">{post.replies.map(reply => <div className="community-reply" key={reply.id}><strong>{reply.author}</strong><span>{reply.body}</span></div>)}<form onSubmit={event => submitReply(event, post)}><input value={replies[post.id] || ''} onChange={event => setReplies(value => ({ ...value, [post.id]: event.target.value }))} placeholder="Viết bình luận..." maxLength={1000}/><button disabled={busy || !(replies[post.id] || '').trim()} aria-label="Gửi bình luận"><Send size={16}/></button></form></div></article>) : <div className="community-empty"><MessageCircle size={28}/><strong>Chưa có bài viết phù hợp</strong><p>Hãy chia sẻ một câu hỏi hoặc ý tưởng đầu tiên.</p></div>}</div>
+      <div className="community-posts">{visible.length ? visible.map(post => <article className="community-post" key={post.id}><div className="community-post-head"><span className="community-avatar">{post.author[0]?.toUpperCase()}</span><div><button onClick={() => setAuthor(post.author)}>{post.author}</button><small>{post.pageName ? `trong ${post.pageName} · ` : ''}{new Date(post.created).toLocaleDateString('vi-VN')} · {post.kind === 'forum' ? 'Diễn đàn' : 'Bảng tin'}</small></div>{post.author === user && <button className="community-delete" onClick={() => { if (confirm('Xóa bài viết này?')) change('delete', { id: post.id }) }} title="Xóa bài"><Trash2 size={16}/></button>}</div><p className="community-post-body">{post.body}</p>{(imageUrls[post.id] || post.imageUrl) && <a className="community-post-image" href={imageUrls[post.id] || post.imageUrl} download={`thu-cac-${post.id}.webp`} title="Tải ảnh"><img src={imageUrls[post.id] || post.imageUrl} alt={`Ảnh chia sẻ của ${post.author}`} loading="lazy"/></a>}{post.bookId && <button className="community-book-link" onClick={() => { const book = books.find(item => item.id === post.bookId); if (book) onOpenBook(book); else toast('Cuốn sách này không còn trong thư viện.') }}><BookOpen size={17}/> {post.bookTitle || 'Sách liên quan'} <ArrowRight size={14}/></button>}<div className="community-post-actions"><button className={post.liked ? 'selected' : ''} onClick={() => change('like', { id: post.id })}><Heart size={16} fill={post.liked ? 'currentColor' : 'none'}/> {post.likes}</button><span><MessageCircle size={16}/> {post.replyCount}</span><button className={post.saved ? 'selected' : ''} onClick={() => change('save', { id: post.id })}><Bookmark size={16} fill={post.saved ? 'currentColor' : 'none'}/> {post.saved ? 'Đã lưu' : 'Lưu'}</button><button className="community-report" onClick={() => { const reason = prompt('Vì sao bạn báo cáo bài viết này?'); if (reason?.trim()) change('report', { id: post.id, reason: reason.trim() }).then(ok => { if (ok) toast('Đã gửi báo cáo.') }) }} aria-label="Báo cáo bài viết"><Flag size={15}/></button></div><div className="community-replies">{post.replies.map(reply => <div className="community-reply" key={reply.id}><strong>{reply.author}</strong><span>{reply.body}</span></div>)}<form onSubmit={event => submitReply(event, post)}><input value={replies[post.id] || ''} onChange={event => setReplies(value => ({ ...value, [post.id]: event.target.value }))} placeholder="Viết bình luận..." maxLength={1000}/><button disabled={busy || !(replies[post.id] || '').trim()} aria-label="Gửi bình luận"><Send size={16}/></button></form></div></article>) : <div className="community-empty"><MessageCircle size={28}/><strong>Chưa có bài viết phù hợp</strong><p>Hãy chia sẻ một câu hỏi hoặc ý tưởng đầu tiên.</p></div>}</div>
     </div><aside className="community-side"><div className="community-side-card"><Users size={23}/><h3>Góc cộng đồng</h3><p>Đọc kỹ, trao đổi văn minh và trích dẫn nguồn khi bổ sung kiến thức.</p><div><b>{data.posts.length}</b><span>bài viết</span><b>{data.pages.length}</b><span>fanpage</span></div></div><div className="community-side-card"><h3>Fanpage nổi bật</h3>{data.pages.slice(0, 5).map(page => <button key={page.id} onClick={() => { setSelectedPage(page.id); onNavigate('pages') }}><span>✦</span><strong>{page.name}</strong><small>{page.followers} theo dõi</small></button>)}{!data.pages.length && <p>Chưa có trang nào.</p>}</div></aside></div>
   </section>
 }

@@ -20,7 +20,7 @@ export function localCommunity(user, action = 'load', payload = {}) {
   }
   if (action === 'post') {
     if (payload.pageId && data.pages.find(page => page.id === payload.pageId)?.owner !== user) throw new Error('Chỉ chủ fanpage được đăng lên trang.')
-    data.posts.push({ id: id(), author: user, pageId: payload.pageId || null, kind: payload.kind, body: payload.body, bookId: payload.bookId || null, bookTitle: payload.bookTitle || null, created: now() })
+    data.posts.push({ id: payload.id || id(), author: user, pageId: payload.pageId || null, kind: payload.kind, body: payload.body, bookId: payload.bookId || null, bookTitle: payload.bookTitle || null, imageKey: payload.imageKey || null, created: now() })
   }
   if (action === 'reply') data.replies.push({ id: id(), postId: payload.id, author: user, body: payload.body, created: now() })
   if (action === 'like' || action === 'save') {

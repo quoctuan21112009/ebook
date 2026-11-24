@@ -250,10 +250,10 @@ app.post('/api/comments/:id/vote', requireUser, (req,res) => {
 })
 app.get('/api/arena', (req,res) => { const rows=db.prepare(`SELECT c.quote,c.book_id,b.title,count(*) count FROM comments c JOIN books b ON b.id=c.book_id WHERE c.tag='Phản biện' AND b.visibility='public' GROUP BY c.book_id,c.quote ORDER BY count DESC LIMIT 8`).all(); res.json({ topics:rows }) })
 app.get('/api/leaderboard', (req,res) => { const users=db.prepare('SELECT id,username,karma FROM users ORDER BY karma DESC LIMIT 20').all(); res.json({ users:users.map(publicUser) }) })
-registerCommunityRoutes(app, db, currentUser, requireUser)
+registerCommunityRoutes(app, db, currentUser, requireUser, { files, readFile, writeFile, unlink })
 await persistence.checkpoint()
 app.use('/api', (_,res)=>res.status(404).json({error:'Không tìm thấy API.'}))
 if (process.env.NODE_ENV==='production') { app.use(express.static(resolve('dist'))); app.get('*path',(_,res)=>res.sendFile(resolve('dist/index.html'))) }
-app.use((error,req,res,next)=>{ console.error(error); res.status(error.code==='LIMIT_FILE_SIZE'?413:500).json({error:error.code==='LIMIT_FILE_SIZE'?'Tệp vượt quá 50 MB.':'Máy chủ gặp lỗi.'}) })
+app.use((error,req,res,next)=>{ console.error(error); const imageUpload = req.path.startsWith('/api/community/posts'); res.status(error.code==='LIMIT_FILE_SIZE'?413:500).json({error:error.code==='LIMIT_FILE_SIZE'?(imageUpload?'Ảnh vượt quá 800 KB. Hãy nén ảnh trước khi đăng.':'Tệp vượt quá 50 MB.'):'Máy chủ gặp lỗi.'}) })
 const server = app.listen(Number(process.env.PORT)||3001,'0.0.0.0',()=>console.log(`Thư Các API ready on ${process.env.PORT||3001}`))
 process.on('SIGTERM', () => server.close(() => persistence.close().then(() => process.exit(0)).catch(() => process.exit(1))))
