@@ -15,33 +15,62 @@ export function sourceRange(element, start, end) {
 }
 
 export function paginateBlocks(blocks, measure, maxHeight) {
-  const pages=[];let page=[]
-  const finish=()=>{if(page.length){pages.push(page);page=[];measure.replaceChildren()}}
-  for(const block of blocks){
-    if(block.image){finish();pages.push([block]);continue}
-    const text=block.text
-    if(!text.trim())continue
-    let start=0
-    while(start<text.length){
-      const element=document.createElement(block.tag || 'p')
-      if(block.pre)element.style.whiteSpace='pre-wrap'
-      measure.appendChild(element)
-      element.textContent=text.slice(start)
-      let end=text.length
-      if(measure.scrollHeight>maxHeight){
-        let low=start,high=text.length
-        while(low<high){const middle=Math.ceil((low+high)/2);element.textContent=text.slice(start,middle);if(measure.scrollHeight<=maxHeight)low=middle;else high=middle-1}
-        end=low
-        if(end<text.length){const space=text.lastIndexOf(' ',end);if(space>start)end=space+1}
-        if(end<=start){element.remove();if(page.length){finish();continue}end=Math.min(text.length,start+1)}
+  const pages = []
+  let page = []
+  measure.replaceChildren()
+  const finish = () => {
+    if (page.length) { pages.push(page); page = [] }
+    measure.replaceChildren()
+  }
+  for (const block of blocks) {
+    if (block.image) { finish(); pages.push([block]); continue }
+    const text = block.text
+    if (!text.trim()) continue
+    let start = 0
+    while (start < text.length) {
+      const last = measure.lastElementChild
+      const joined = start === 0 && block.joinPrevious && last?.tagName === 'P'
+      const element = measure.ownerDocument.createElement(joined ? 'span' : block.tag || 'p')
+      let separator
+      if (joined) {
+        separator = measure.ownerDocument.createTextNode(' ')
+        last.append(separator, element)
+      } else measure.appendChild(element)
+      if (start > 0 || block.joinPrevious) element.style.textIndent = '0'
+      if (block.pre) element.style.whiteSpace = 'pre-wrap'
+      element.textContent = text.slice(start)
+      let end = text.length
+      if (measure.scrollHeight > maxHeight) {
+        let low = start, high = text.length
+        while (low < high) {
+          const middle = Math.ceil((low + high) / 2)
+          element.textContent = text.slice(start, middle)
+          if (measure.scrollHeight <= maxHeight) low = middle
+          else high = middle - 1
+        }
+        end = low
+        // Never put the beginning of a word on one page and its tail on the next.
+        if (end < text.length && !/\s/u.test(text[end - 1] || '') && !/\s/u.test(text[end] || '')) {
+          const boundary = text.slice(start, end).search(/\s+\S*$/u)
+          if (boundary >= 0) end = start + boundary + 1
+          else if (page.length) end = start
+        }
+        // Carry a tiny orphan fragment to the next page instead of splitting it.
+        if (page.length && text.slice(start, end).trim().split(/\s+/u).length < 4) end = start
+        if (end <= start) {
+          element.remove(); separator?.remove()
+          if (page.length) { finish(); continue }
+          end = Math.min(text.length, start + 1)
+        }
       }
-      element.textContent=text.slice(start,end)
-      page.push({...block,text:text.slice(start,end),start,end})
-      start=end
-      if(start<text.length)finish()
+      element.textContent = text.slice(start, end)
+      page.push({ ...block, text: text.slice(start, end), start, end })
+      start = end
+      if (start < text.length) finish()
     }
   }
-  finish();return pages
+  finish()
+  return pages
 }
 
 export function textWithLineBreaks(element) {

@@ -3,6 +3,7 @@ import { mountPageFlip } from './managed-page-flip'
 import { ArrowLeft,BookOpen,ChevronLeft,ChevronRight,Highlighter,Quote,Settings2,X } from 'lucide-react'
 import { ensureFile,ensureReflow } from './storage'
 import { pdfToEpub,loadPdf } from './book-utils'
+import { markParagraphFlow } from './paragraph-flow'
 import { normalizeReaderDocument } from './reader-typography'
 import { paginateBlocks,blockRange,textWithLineBreaks } from './flipbook-pagination'
 import { readApiJson } from './api'
@@ -48,6 +49,8 @@ export default function FlipbookReader({bookInfo,prefs,setPrefs,progress,setProg
     setBusy(true);setSelection(null)
     ;(async()=>{
       try{
+        const family=prefs.font==='sans'?'Be Vietnam Pro':'Noto Serif'
+        await Promise.all([400,700].map(weight=>document.fonts.load(`${weight} ${prefs.fontSize}px "${family}"`,'Tiếng Việt rõ ràng ABC')))
         await document.fonts.ready
         let result
         if(pdf){
@@ -64,7 +67,7 @@ export default function FlipbookReader({bookInfo,prefs,setPrefs,progress,setProg
         }else{
           const section=library.current.spine.get(chapter)
           await section.load(library.current.load.bind(library.current));if(cancelled)return
-          source.current=section;normalizeReaderDocument(section.document)
+          source.current=section;normalizeReaderDocument(section.document);markParagraphFlow(section.document,prefs.repairFlow!==false)
           const blocks=[]
           for(const el of (section.document.querySelector('body') || section.document.documentElement).querySelectorAll('h1,h2,h3,h4,p,li,pre,blockquote,img,div,td,th,figcaption')){
             if(el.tagName.toLowerCase()==='div'&&(el.querySelector('p,div,h1,h2,h3,h4,li,blockquote,pre,img')||!el.textContent.trim()))continue
@@ -73,7 +76,7 @@ export default function FlipbookReader({bookInfo,prefs,setPrefs,progress,setProg
             if(el.tagName.toLowerCase()==='img'){
               const src=el.getAttribute('src');if(!src)continue
               try{const path=new URL(src,'https://epub.local/'+section.href).pathname;const url=await library.current.archive.createUrl(path);blocks.push({image:url})}catch{}
-            }else blocks.push({...textWithLineBreaks(el),tag:/^h[1-4]$/i.test(el.tagName)?el.tagName.toLowerCase():'p',pre:el.matches('pre,.poem,.poetry,.verse'),element:el})
+            }else blocks.push({...textWithLineBreaks(el),tag:/^h[1-4]$/i.test(el.tagName)?el.tagName.toLowerCase():'p',pre:el.matches('pre,.poem,.poetry,.verse'),joinPrevious:el.hasAttribute('data-reader-join'),element:el})
           }
           if(!blocks.length){const body=section.document.querySelector('body');if(body?.textContent.trim())blocks.push({...textWithLineBreaks(body),tag:'p',element:body})}
           if(initialCfi.current){
@@ -84,7 +87,7 @@ export default function FlipbookReader({bookInfo,prefs,setPrefs,progress,setProg
             }catch{}
             initialCfi.current=null
           }
-          result=paginateBlocks(blocks,measure.current,size.height-104)
+          result=paginateBlocks(blocks,measure.current,size.height-112)
         }
         if(cancelled)return
         if(!result.length)result=[[{text:'Trang này không có văn bản.',tag:'p'}]]
@@ -93,7 +96,7 @@ export default function FlipbookReader({bookInfo,prefs,setPrefs,progress,setProg
       }catch(e){if(!cancelled){setError(e.message||'Không dàn được trang sách');setBusy(false)}}
     })()
     return()=>{cancelled=true;pageUrls.forEach(URL.revokeObjectURL)}
-  },[ready,chapter,size.width,size.height,prefs.font,prefs.fontSize,prefs.lineHeight,prefs.paragraphGap,prefs.paragraphIndent])
+  },[ready,chapter,size.width,size.height,prefs.font,prefs.fontSize,prefs.lineHeight,prefs.paragraphGap,prefs.paragraphIndent,prefs.repairFlow])
   useEffect(()=>{
     if(busy||!pages.length)return
     const root=document.createElement('div');root.style.width=`${size.width*(size.spread?2:1)}px`;root.style.height=`${size.height}px`;host.current.replaceChildren(root)
@@ -109,7 +112,12 @@ export default function FlipbookReader({bookInfo,prefs,setPrefs,progress,setProg
       const content=document.createElement('div');content.className='flip-page-content'
       blocks.forEach((block,i)=>{
         if(block.image){const img=document.createElement('img');img.src=block.image;img.alt=block.pdfPage?`Trang PDF ${block.pdfPage}`:'Minh họa trong sách';content.appendChild(img);return}
-        const el=document.createElement(block.tag||'p');el.textContent=block.text;el.dataset.block=String(i);if(block.start>0)el.style.textIndent='0';if(block.pre)el.style.whiteSpace='pre-wrap';content.appendChild(el)
+        const last=content.lastElementChild
+        const joined=block.joinPrevious&&last?.tagName==='P'
+        const el=document.createElement(joined?'span':block.tag||'p');el.textContent=block.text;el.dataset.block=String(i)
+        if(block.start>0||block.joinPrevious)el.style.textIndent='0'
+        if(block.pre)el.style.whiteSpace='pre-wrap'
+        if(joined){last.appendChild(document.createTextNode(' '));last.appendChild(el)}else content.appendChild(el)
       })
       leaf.appendChild(content);const ribbon=document.createElement('span');ribbon.className='flip-ribbon';leaf.appendChild(ribbon);const number=document.createElement('div');number.className='flip-page-number';number.textContent=String(blocks[0]?.pdfPage||index+1);leaf.appendChild(number);elements.push(leaf)
     })
@@ -152,8 +160,8 @@ export default function FlipbookReader({bookInfo,prefs,setPrefs,progress,setProg
   useEffect(()=>{const listener=()=>capture();document.addEventListener('selectionchange',listener);return()=>document.removeEventListener('selectionchange',listener)},[selecting,pages])
   function saveNote(){setAnnotations([...annotations,{id:crypto.randomUUID(),type:'highlight',cfi:note.cfi,text:note.text,note:noteText,date:Date.now()}]);setNote(null);setNoteText('');toast('Đã lưu đoạn trích vào sổ tay.')}
   async function comment(){setPosting(true);try{const response=await fetch('/api/comments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({bookId:bookInfo.id,cfi:note.cfi,quote:note.text,body:noteText,tag})});const data=await readApiJson(response);if(!response.ok)throw new Error(data.error);setNote(null);setNoteText('');toast('Đã đăng bình luận theo đoạn.')}catch(e){toast(e.message)}finally{setPosting(false)}}
-  return <div className="flip-reader" data-paper={prefs.theme} style={{'--leaf-paper':palette[0],'--leaf-ink':palette[1],'--leaf-font':prefs.font==='sans'?'"Be Vietnam Pro",sans-serif':'"Noto Serif",serif','--leaf-size':`${prefs.fontSize}px`,'--leaf-leading':prefs.lineHeight,'--leaf-gap':`${prefs.paragraphGap??.55}em`,'--leaf-indent':`${prefs.paragraphIndent??1.2}em`}}><header><button onClick={onClose} aria-label="Về tủ sách"><ArrowLeft size={19}/></button><strong>{bookInfo.title}<small>SÁCH LẬT 3D</small></strong><button onClick={onClassic}><BookOpen size={17}/><span>Đọc chữ / công cụ</span></button>{!pdf&&<button className={selecting?'on':''} onClick={()=>{setSelecting(!selecting);setSelection(null)}} aria-label="Bật chọn chữ"><Highlighter size={17}/><span>{selecting?'Đang chọn chữ':'Chọn chữ'}</span></button>}<button onClick={()=>setSettings(!settings)} aria-label="Tùy chỉnh sách 3D"><Settings2 size={19}/></button></header>
-    {settings&&<div className="flip-settings">{!pdf&&<><label>Cỡ chữ <input aria-label="Cỡ chữ sách 3D" type="range" min="14" max="30" value={prefs.fontSize} onChange={e=>setPrefs(p=>({...p,fontSize:+e.target.value}))}/>{prefs.fontSize}px</label><select aria-label="Kiểu chữ sách 3D" value={prefs.font} onChange={e=>setPrefs(p=>({...p,font:e.target.value}))}><option value="serif">Có chân · cổ điển</option><option value="sans">Không chân · hiện đại</option></select></>}<select aria-label="Nền giấy sách 3D" value={prefs.theme} onChange={e=>setPrefs(p=>({...p,theme:e.target.value}))}><option value="paper">Giấy ngà</option><option value="white">Trắng ấm</option><option value="sepia">Nâu cổ</option><option value="night">Đêm</option></select><button onClick={()=>setSettings(false)}><X size={17}/></button></div>}
+  return <div className="flip-reader" data-paper={prefs.theme} style={{'--leaf-paper':palette[0],'--leaf-ink':palette[1],'--leaf-font':prefs.font==='sans'?'"Be Vietnam Pro",sans-serif':'"Noto Serif",serif','--leaf-size':`${prefs.fontSize}px`,'--leaf-leading':prefs.lineHeight,'--leaf-gap':`${prefs.paragraphGap??.55}em`,'--leaf-indent':`${prefs.paragraphIndent??1.2}em`}}><header><button onClick={onClose} aria-label="Về tủ sách"><ArrowLeft size={19}/></button><strong>{bookInfo.title}<small>SÁCH LẬT 3D</small></strong><button onClick={onClassic} aria-label="Đọc chữ / công cụ"><BookOpen size={17}/><span>Đọc chữ / công cụ</span></button>{!pdf&&<button className={selecting?'on':''} onClick={()=>{setSelecting(!selecting);setSelection(null)}} aria-label="Bật chọn chữ"><Highlighter size={17}/><span>{selecting?'Đang chọn chữ':'Chọn chữ'}</span></button>}<button onClick={()=>setSettings(!settings)} aria-label="Tùy chỉnh sách 3D"><Settings2 size={19}/></button></header>
+    {settings&&<div className="flip-settings">{!pdf&&<><label className="flow-checkbox"><input type="checkbox" checked={prefs.repairFlow!==false} onChange={e=>setPrefs(p=>({...p,repairFlow:e.target.checked}))}/>Nối đoạn bị ngắt sai</label><label>Cỡ chữ <input aria-label="Cỡ chữ sách 3D" type="range" min="14" max="30" value={prefs.fontSize} onChange={e=>setPrefs(p=>({...p,fontSize:+e.target.value}))}/>{prefs.fontSize}px</label><select aria-label="Kiểu chữ sách 3D" value={prefs.font} onChange={e=>setPrefs(p=>({...p,font:e.target.value}))}><option value="serif">Có chân · cổ điển</option><option value="sans">Không chân · hiện đại</option></select></>}<select aria-label="Nền giấy sách 3D" value={prefs.theme} onChange={e=>setPrefs(p=>({...p,theme:e.target.value}))}><option value="paper">Giấy ngà</option><option value="white">Trắng ấm</option><option value="sepia">Nâu cổ</option><option value="night">Đêm</option></select><button onClick={()=>setSettings(false)}><X size={17}/></button></div>}
     <div className="flip-stage" ref={stage}><div className={`flip-book-host ${selecting?'text-selection':''}`} ref={host} style={{width:size.width*(size.spread?2:1),height:size.height,transform:current===0&&size.spread?`translateX(${-size.width/2}px)`:undefined}} onPointerUp={capture}/>{busy&&<div className="flip-status">Đang dàn trang sách…</div>}{error&&<div className="flip-status">{error}<button onClick={onClassic}>Mở trình đọc thường</button></div>}</div>
     <div className="flip-measure flip-page-content" ref={measure} style={{width:size.width-64,height:'auto'}}/>
     <footer><button onClick={()=>turn(-1)} aria-label="Lật trang trước"><ChevronLeft size={20}/></button><select aria-label="Chọn chương sách 3D" value={chapter} onChange={e=>{anchorRef.current=null;resume.current=0;setChapter(+e.target.value)}}>{chapters.map(c=><option key={c.index} value={c.index}>{c.label}</option>)}</select><span>{current===0?'Bìa sách':`Trang ${Math.min(current,pages.length)} / ${pages.length}`}</span><button onClick={()=>turn(1)} aria-label="Lật trang tiếp"><ChevronRight size={20}/></button></footer><p className="flip-hint">{selecting?'Nhấn giữ và kéo tay nắm để chọn chữ, rồi chọn ghi chú hoặc ảnh.':'Kéo góc trang hoặc vuốt để lật · Bấm mũi tên để mở bìa'}</p>

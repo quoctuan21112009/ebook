@@ -1,3 +1,5 @@
+import { markParagraphFlow } from './paragraph-flow'
+
 const protectedContent = 'pre,code,table,svg,.poem,.poetry,.verse,[data-preserve-lines]'
 const textBlocks = 'p,li,blockquote,dd,dt'
 const set = (element, name, value) => element.style.setProperty(name, value, 'important')
@@ -25,6 +27,7 @@ export async function applyReaderTypography(doc, prefs) {
   const family = prefs.font === 'sans' ? '"Thu Cac Sans",sans-serif' : '"Thu Cac Serif",serif'
   const colors = { paper: ['#f5ecd9','#332b24'], white: ['#fffdfa','#252522'], sepia: ['#dec7a3','#3b2b1e'], night: ['#232927','#e7dfce'] }
   const [background, ink] = colors[prefs.theme] || colors.paper
+  markParagraphFlow(doc, prefs.repairFlow !== false)
   const body = doc.body
   set(body,'font-family',family);set(body,'font-size',`${size}px`);set(body,'line-height',String(leading))
   set(body,'color',ink);set(body,'background',background)
@@ -52,7 +55,7 @@ export async function applyReaderTypography(doc, prefs) {
     for (const [name,value] of Object.entries({
       'font-size':`${size}px`,'line-height':String(leading),'font-weight':'500',
       'width':'auto','max-width':'100%','height':'auto','min-height':'0','max-height':'none',
-      'white-space':'normal','text-align':'left','text-indent':`${prefs.paragraphIndent ?? 1.2}em`,
+      'display':'block','white-space':'normal','text-align':'left','text-indent':`${prefs.paragraphIndent ?? 1.2}em`,
       'margin-top':'0','margin-bottom':`${prefs.paragraphGap ?? .55}em`,
       'break-before':'auto','break-after':'auto','break-inside':'auto',
       'page-break-before':'auto','page-break-after':'auto','page-break-inside':'auto',
@@ -63,6 +66,14 @@ export async function applyReaderTypography(doc, prefs) {
       set(span,'display','inline');set(span,'white-space','normal');set(span,'font-size','inherit');set(span,'line-height','inherit')
     })
   }
+  let flowStyle = doc.getElementById('tc-paragraph-flow')
+  if (!flowStyle) { flowStyle = doc.createElement('style'); flowStyle.id = 'tc-paragraph-flow'; doc.head.appendChild(flowStyle) }
+  flowStyle.textContent = `
+    [data-reader-run], [data-reader-join] { display:inline !important; margin:0 !important; padding:0 !important; text-indent:0 !important; }
+    [data-reader-run]:not([data-reader-join])::before { content:""; display:inline-block; width:${prefs.paragraphIndent ?? 1.2}em; }
+    [data-reader-join]:not([data-reader-run])::after { content:""; display:block; margin-bottom:${prefs.paragraphGap ?? .55}em; }
+  `
+  for (const element of doc.querySelectorAll('[data-reader-run],[data-reader-join]')) set(element,'display','inline')
   for(const heading of doc.querySelectorAll('h1,h2,h3,h4,h5,h6')) {
     set(heading,'font-size',`${size * ({H1:1.65,H2:1.4,H3:1.2}[heading.tagName] || 1.1)}px`)
     set(heading,'line-height','1.3');set(heading,'height','auto');set(heading,'max-width','100%')
