@@ -5,6 +5,7 @@ import { randomBytes, randomUUID, scrypt as scryptCallback, createHash, timingSa
 import { promisify } from 'node:util'
 import { mkdir, writeFile, readFile, unlink } from 'node:fs/promises'
 import { join, resolve, extname } from 'node:path'
+import { registerCommunityRoutes } from './community.js'
 
 const scrypt = promisify(scryptCallback)
 const root = resolve(process.env.DATA_DIR || '.data')
@@ -58,8 +59,8 @@ function currentUser(req) {
 function requireUser(req, res, next) { req.user = currentUser(req); if (!req.user) return res.status(401).json({ error: 'Hãy đăng nhập trước.' }); next() }
 function createSession(req, res, user) {
   const token = randomBytes(32).toString('hex')
-  db.prepare('INSERT INTO sessions VALUES (?,?,?)').run(digest(token), user.id, Date.now() + 30 * 86400000)
-  res.cookie('tc_session', token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' && (req.secure || process.env.COOKIE_SECURE === 'true'), maxAge: 30 * 86400000, path: '/' })
+  db.prepare('INSERT INTO sessions VALUES (?,?,?)').run(digest(token), user.id, Date.now() + 365 * 86400000)
+  res.cookie('tc_session', token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' && (req.secure || process.env.COOKIE_SECURE === 'true'), maxAge: 365 * 86400000, path: '/' })
 }
 
 app.get('/api/health', (_, res) => res.json({ ok: true }))
@@ -79,6 +80,17 @@ app.post('/api/auth/login', limitAuth, asyncRoute(async (req, res) => {
   if (!user || !timingSafeEqual(candidate, Buffer.from(user.hash, 'hex'))) return res.status(401).json({ error: 'Tên đăng nhập hoặc mật khẩu chưa đúng.' })
   createSession(req, res, user); res.json({ user: publicUser(user) })
 }))
+app.post('/api/identity/enter', limitAuth, (req, res) => {
+  const username = clean(req.body.username, 30).replace(/\s+/g, ' ')
+  if (username.length < 2 || !/^[\p{L}\p{N}_ .-]+$/u.test(username)) return res.status(400).json({ error: 'Tên hiển thị không hợp lệ.' })
+  const key = username.normalize('NFC').toLocaleLowerCase('vi')
+  if (db.prepare('SELECT username FROM users').all().some(user => user.username.normalize('NFC').toLocaleLowerCase('vi') === key)) return res.status(409).json({ error: 'Tên này đã được dùng. Hãy chọn tên khác; tên cũ có thể thuộc tài khoản được bảo vệ.' })
+  const id = randomUUID()
+  db.prepare('INSERT INTO users(id,username,salt,hash,created) VALUES (?,?,?,?,?)').run(id, username, randomBytes(16).toString('hex'), randomBytes(64).toString('hex'), Date.now())
+  const user = db.prepare('SELECT * FROM users WHERE id=?').get(id)
+  createSession(req, res, user)
+  res.status(201).json({ user: publicUser(user) })
+})
 app.post('/api/auth/logout', requireUser, (req, res) => { const cookie = req.headers.cookie?.split(';').map(v => v.trim()).find(v => v.startsWith('tc_session='))?.slice(11); if (cookie) db.prepare('DELETE FROM sessions WHERE token_hash=?').run(digest(cookie)); res.clearCookie('tc_session'); res.json({ ok: true }) })
 app.get('/api/me', (req, res) => { const user = currentUser(req); res.json({ user: user ? publicUser(user) : null }) })
 
@@ -218,6 +230,7 @@ app.post('/api/comments/:id/vote', requireUser, (req,res) => {
 })
 app.get('/api/arena', (req,res) => { const rows=db.prepare(`SELECT c.quote,c.book_id,b.title,count(*) count FROM comments c JOIN books b ON b.id=c.book_id WHERE c.tag='Phản biện' AND b.visibility='public' GROUP BY c.book_id,c.quote ORDER BY count DESC LIMIT 8`).all(); res.json({ topics:rows }) })
 app.get('/api/leaderboard', (req,res) => { const users=db.prepare('SELECT id,username,karma FROM users ORDER BY karma DESC LIMIT 20').all(); res.json({ users:users.map(publicUser) }) })
+registerCommunityRoutes(app, db, currentUser, requireUser)
 app.use('/api', (_,res)=>res.status(404).json({error:'Không tìm thấy API.'}))
 if (process.env.NODE_ENV==='production') { app.use(express.static(resolve('dist'))); app.get('*path',(_,res)=>res.sendFile(resolve('dist/index.html'))) }
 app.use((error,req,res,next)=>{ console.error(error); res.status(error.code==='LIMIT_FILE_SIZE'?413:500).json({error:error.code==='LIMIT_FILE_SIZE'?'Tệp vượt quá 50 MB.':'Máy chủ gặp lỗi.'}) })
