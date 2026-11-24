@@ -1,17 +1,15 @@
 import express from 'express'
 import multer from 'multer'
-import { DatabaseSync } from 'node:sqlite'
 import { randomBytes, randomUUID, scrypt as scryptCallback, createHash, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
-import { mkdir, writeFile, readFile, unlink } from 'node:fs/promises'
-import { join, resolve, extname } from 'node:path'
+import { join, resolve } from 'node:path'
 import { registerCommunityRoutes } from './community.js'
+import { openPersistence } from './persistence.js'
 
 const scrypt = promisify(scryptCallback)
 const root = resolve(process.env.DATA_DIR || '.data')
-const files = join(root, 'files')
-await mkdir(files, { recursive: true })
-const db = new DatabaseSync(join(root, 'thu-cac.sqlite'))
+const persistence = await openPersistence(root)
+const { db, files, readFile, writeFile, unlink } = persistence
 db.exec(`PRAGMA journal_mode=WAL;
 CREATE TABLE IF NOT EXISTS users (id TEXT PRIMARY KEY, username TEXT UNIQUE NOT NULL, salt TEXT NOT NULL, hash TEXT NOT NULL, karma INTEGER NOT NULL DEFAULT 0, created INTEGER NOT NULL);
 CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, expires INTEGER NOT NULL);
@@ -34,6 +32,28 @@ app.use((req, res, next) => {
   if (!['GET','HEAD','OPTIONS'].includes(req.method) && req.headers.origin) {
     try { if (new URL(req.headers.origin).host !== req.headers.host) return res.status(403).json({ error: 'Nguồn yêu cầu không hợp lệ.' }) }
     catch { return res.status(403).json({ error: 'Nguồn yêu cầu không hợp lệ.' }) }
+  }
+  next()
+})
+if (persistence.remote) app.use('/api', async (req, res, next) => {
+  try { await persistence.health(); next() }
+  catch { res.status(503).json({ error: 'Cơ sở dữ liệu tạm thời chưa sẵn sàng.' }) }
+})
+if (persistence.remote) app.use((req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next()
+  const originalEnd = res.end
+  res.end = function (...args) {
+    persistence.checkpoint().then(() => originalEnd.apply(this, args)).catch(error => {
+      console.error('Không lưu được dữ liệu PostgreSQL:', error.code || error.message)
+      if (!this.headersSent) {
+        this.statusCode = 503
+        this.removeHeader('Content-Length')
+        this.removeHeader('ETag')
+        this.setHeader('Content-Type', 'application/json; charset=utf-8')
+        originalEnd.call(this, JSON.stringify({ error: 'Chưa lưu được dữ liệu. Hãy thử lại sau.' }))
+      } else originalEnd.call(this)
+    })
+    return this
   }
   next()
 })
@@ -63,7 +83,7 @@ function createSession(req, res, user) {
   res.cookie('tc_session', token, { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production' && (req.secure || process.env.COOKIE_SECURE === 'true'), maxAge: 365 * 86400000, path: '/' })
 }
 
-app.get('/api/health', (_, res) => res.json({ ok: true }))
+app.get('/api/health', (_, res) => res.json({ ok: true, storage: persistence.remote ? 'postgresql' : 'sqlite' }))
 app.post('/api/auth/register', limitAuth, asyncRoute(async (req, res) => {
   const username = clean(req.body.username, 30).toLowerCase()
   const password = String(req.body.password || '')
@@ -231,7 +251,9 @@ app.post('/api/comments/:id/vote', requireUser, (req,res) => {
 app.get('/api/arena', (req,res) => { const rows=db.prepare(`SELECT c.quote,c.book_id,b.title,count(*) count FROM comments c JOIN books b ON b.id=c.book_id WHERE c.tag='Phản biện' AND b.visibility='public' GROUP BY c.book_id,c.quote ORDER BY count DESC LIMIT 8`).all(); res.json({ topics:rows }) })
 app.get('/api/leaderboard', (req,res) => { const users=db.prepare('SELECT id,username,karma FROM users ORDER BY karma DESC LIMIT 20').all(); res.json({ users:users.map(publicUser) }) })
 registerCommunityRoutes(app, db, currentUser, requireUser)
+await persistence.checkpoint()
 app.use('/api', (_,res)=>res.status(404).json({error:'Không tìm thấy API.'}))
 if (process.env.NODE_ENV==='production') { app.use(express.static(resolve('dist'))); app.get('*path',(_,res)=>res.sendFile(resolve('dist/index.html'))) }
 app.use((error,req,res,next)=>{ console.error(error); res.status(error.code==='LIMIT_FILE_SIZE'?413:500).json({error:error.code==='LIMIT_FILE_SIZE'?'Tệp vượt quá 50 MB.':'Máy chủ gặp lỗi.'}) })
-app.listen(Number(process.env.PORT)||3001,'0.0.0.0',()=>console.log(`Thư Các API ready on ${process.env.PORT||3001}`))
+const server = app.listen(Number(process.env.PORT)||3001,'0.0.0.0',()=>console.log(`Thư Các API ready on ${process.env.PORT||3001}`))
+process.on('SIGTERM', () => server.close(() => persistence.close().then(() => process.exit(0)).catch(() => process.exit(1))))
